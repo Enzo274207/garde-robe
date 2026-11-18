@@ -1,0 +1,15 @@
+{
+  "name": "Garde-robe",
+  "short_name": "Garde-robe",
+  "description": "Ma garde-robe digitalisée : mes pièces, mes tenues, mon historique.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F4F1EC",
+  "theme_color": "#F4F1EC",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
