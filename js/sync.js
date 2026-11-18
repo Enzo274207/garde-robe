@@ -255,7 +255,7 @@ export function createSync(api, db = idbStorage(), env = {}) {
   const S = {
     isOfflineCapable: true,
     status, onStatus(f) { statusL.push(f); }, onChange(f) { changeL.push(f); },
-    snapshot: () => snap,
+    snapshot: () => snap && { profile: snap.profile ? { ...snap.profile } : snap.profile, items: [...snap.items], outfits: [...snap.outfits], wears: [...snap.wears] },
     flush,
     onAuth: (cb) => api.onAuth(cb),
     async session() {
@@ -271,10 +271,11 @@ export function createSync(api, db = idbStorage(), env = {}) {
       uid = null; snap = null; queue = []; offline = false; emit();
       if (typeof caches !== 'undefined') await caches.delete('garderobe-photos').catch(() => {});
     },
-    async profile() { return (await refresh()).profile; },
-    async items() { return (await refresh()).items; },
-    async outfits() { return (await refresh()).outfits; },
-    async wears() { return (await refresh()).wears; },
+    // Copies : l'app ne doit jamais modifier les listes internes du moteur
+    async profile() { const p = (await refresh()).profile; return p ? { ...p } : p; },
+    async items() { return [...(await refresh()).items]; },
+    async outfits() { return [...(await refresh()).outfits]; },
+    async wears() { return [...(await refresh()).wears]; },
     async resign(list) {
       try { return await api.resign(list); } catch (e) { if (isNetworkError(e)) { setOffline(true); return list; } throw e; }
     },
