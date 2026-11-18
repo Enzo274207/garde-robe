@@ -47,6 +47,17 @@ Puis ouvre http://localhost:8000 (un vrai serveur est nécessaire : un double-cl
 Ouvre l'adresse dans **Safari** → bouton **Partager** → **Sur l'écran d'accueil**.
 L'app s'ouvre ensuite en plein écran comme une app normale.
 
+## Mises à jour de la base (migrations)
+
+À exécuter **dans l'ordre**, une seule fois, dans Supabase > SQL Editor (elles n'effacent aucune donnée) :
+
+| Fichier | Rôle | Annulation |
+|---|---|---|
+| `supabase/migrations/001_securite.sql` | Vérifie les couleurs et longueurs, interdit d'utiliser la pièce d'un autre utilisateur dans une tenue, limite les photos (5 Mo, JPEG/PNG/WebP), ajoute la suppression de compte | `001_securite_down.sql` |
+| `supabase/migrations/002_fiches.sql` | Catégorie Vestes, détails facultatifs (saisons, style, chaleur, formalité, matière, marque, taille, couleurs secondaires), favoris, nombre de ports | `002_fiches_down.sql` |
+
+`supabase/schema.sql` reste le schéma de départ pour un projet neuf (puis appliquer les migrations).
+
 ## Structure
 
 ```

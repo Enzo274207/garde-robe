@@ -19,6 +19,12 @@ export const CATEGORIES = {
     plural: { Baskets: 'Baskets', Running: 'Running', Ville: 'Ville', Bottines: 'Bottines' },
     fits: ['Basses', 'Montantes'], fitWord: 'Tige'
   },
+  veste: {
+    key: 'veste', title: 'Vestes', one: 'une veste', empty: 'Aucune veste ne correspond',
+    types: ['Blouson', 'Veste', 'Manteau', 'Doudoune', 'Coupe-vent'],
+    plural: { Blouson: 'Blousons', Veste: 'Vestes', Manteau: 'Manteaux', Doudoune: 'Doudounes', 'Coupe-vent': 'Coupe-vent' },
+    fits: ['Ajusté', 'Regular', 'Ample'], fitWord: 'Coupe'
+  },
   accessoire: {
     key: 'accessoire', title: 'Accessoires', one: 'un accessoire', empty: 'Aucun accessoire ne correspond',
     types: ['Montre', 'Bague', 'Chaîne', 'Bracelet'],
@@ -26,7 +32,13 @@ export const CATEGORIES = {
     fits: [], fitWord: ''
   }
 };
-export const CAT_ORDER = ['haut', 'bas', 'chaussures', 'accessoire'];
+export const CAT_ORDER = ['haut', 'bas', 'veste', 'chaussures', 'accessoire'];
+
+// Caractéristiques facultatives d'une fiche
+export const SEASONS = ['Printemps', 'Été', 'Automne', 'Hiver'];
+export const STYLES = ['Streetwear', 'Casual', 'Chic', 'Sport', 'Classique', 'Workwear'];
+export const WARMTH = ['Très léger', 'Léger', 'Moyen', 'Chaud', 'Très chaud'];          // 1 à 5
+export const FORMALITY = ['Détente', 'Décontracté', 'Smart', 'Habillé', 'Très habillé']; // 1 à 5
 
 export const PALETTE = [
   { label: 'Blanc', hex: '#F4F2EE', neutral: true },
@@ -44,6 +56,8 @@ export const PALETTE = [
   { label: 'Or', hex: '#D4AF5A', neutral: true },
   { label: 'Argent', hex: '#C9CCD1', neutral: true }
 ];
+// Couleur toujours au format #RRGGBB avant d'être insérée dans du HTML/SVG
+export const safeColor = (hex) => (/^#[0-9a-fA-F]{6}$/.test(String(hex)) ? String(hex) : '#8C8C8C');
 export const isNeutral = (hex) => {
   const p = PALETTE.find((c) => c.hex.toLowerCase() === String(hex).toLowerCase());
   return p ? p.neutral : true;
@@ -94,5 +108,6 @@ export const DEMO_ITEMS = [
   { category: 'chaussures', type: 'Baskets', name: 'Baskets blanches', color_name: 'Blanc', color_hex: '#F4F2EE', fit: 'Basses' },
   { category: 'chaussures', type: 'Ville', name: 'Derbies noires', color_name: 'Noir', color_hex: '#1E1E1E', fit: 'Basses' },
   { category: 'chaussures', type: 'Bottines', name: 'Bottines marron', color_name: 'Marron', color_hex: '#6B4A32', fit: 'Montantes' },
+  { category: 'veste', type: 'Blouson', name: 'Blouson noir', color_name: 'Noir', color_hex: '#1E1E1E', fit: 'Regular' },
   { category: 'accessoire', type: 'Montre', name: 'Montre acier', color_name: 'Argent', color_hex: '#C9CCD1', fit: '' }
 ];

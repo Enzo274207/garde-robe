@@ -1,5 +1,5 @@
 // Service worker : l'app s'ouvre même hors connexion (les données en ligne restent nécessaires pour se synchroniser).
-const VERSION = 'garderobe-v2';
+const VERSION = 'garderobe-v3';
 const SHELL = ['./', './index.html', './css/app.css', './js/app.js', './js/catalog.js', './js/draw.js', './js/store.js', './js/image.js', './js/config.js', './manifest.webmanifest', './icons/icon.svg'];
 
 self.addEventListener('install', (e) => {

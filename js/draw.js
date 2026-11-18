@@ -1,5 +1,5 @@
 // Dessins SVG : silhouette, visage, illustrations des pièces.
-import { AV, isDark } from './catalog.js';
+import { AV, isDark, safeColor } from './catalog.js';
 
 const f1 = (v) => (Math.round(v * 10) / 10).toString();
 const circ = (cx, cy, r) => `M${cx - r} ${cy} a${r} ${r} 0 1 0 ${2 * r} 0 a${r} ${r} 0 1 0 ${-2 * r} 0 Z`;
@@ -85,7 +85,7 @@ function soleColor(item) {
 }
 
 /* ---------- silhouette complète ---------- */
-export function figureSVG({ top, bottom, shoes, avatar }) {
+export function figureSVG({ top, bottom, shoes, jacket, avatar }) {
   const p = faceParts(avatar);
   const R = (v) => f1(100 + v), L = (v) => f1(100 - v);
   const topFit = top?.fit || 'Regular';
@@ -105,13 +105,32 @@ export function figureSVG({ top, bottom, shoes, avatar }) {
   const cK = (bf.Ko + bf.Ki) / 2, cH = (bf.Ho + bf.Hi) / 2;
   const crease = `M${R(cK)} 400 L${R(cH)} 555 M${L(cK)} 400 L${L(cH)} 555 M100 300 L100 340`;
   const sh = SHOES[shoeKey(shoes)];
-  const shoeHex = shoes ? shoes.color_hex : '#F4F2EE';
+  const shoeHex = shoes ? safeColor(shoes.color_hex) : '#F4F2EE';
   const shoeAcc = isDark(shoeHex) ? 'rgba(255,255,255,.4)' : 'rgba(0,0,0,.3)';
   const shoe = (tr) => `<g transform="${tr}"><path d="${sh.u}" fill="${shoeHex}" stroke="var(--outline)" stroke-width="1.2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><path d="${sh.d}" fill="none" stroke="${shoeAcc}" stroke-width="1.6" stroke-linecap="round" vector-effect="non-scaling-stroke"/><path d="${SOLE}" fill="${soleColor(shoes)}" stroke="var(--outline)" stroke-width="1.2" vector-effect="non-scaling-stroke"/></g>`;
-  const topHex = top ? top.color_hex : '#D8D3CB';
-  const botHex = bottom ? bottom.color_hex : '#BDB7AD';
+  const topHex = top ? safeColor(top.color_hex) : '#D8D3CB';
+  const botHex = bottom ? safeColor(bottom.color_hex) : '#BDB7AD';
+  // Veste ouverte par-dessus le haut : silhouette un peu plus large et plus longue, manches longues,
+  // puis une bande du haut visible au centre.
+  let jacketSVG = '';
+  if (jacket) {
+    const jf = { 'Ajusté': 3, Regular: 6, Ample: 11 }[jacket.fit] || 6;
+    const long = jacket.type === 'Manteau' ? 70 : jacket.type === 'Doudoune' ? 14 : 18;
+    const JS = S + 3 + jf / 2, JW = W + jf, JH = H + jf, jhem = Math.max(hem, 300) + long;
+    const jHex = safeColor(jacket.color_hex);
+    const jTorso = `M80 88 L${R(JS)} 101 Q${R(JW + 3)} 125 ${R(JW)} 165 Q${R(JH + 2)} ${jhem - 60} ${R(JH)} ${jhem} L${L(JH)} ${jhem} Q${L(JH + 2)} ${jhem - 60} ${L(JW)} 165 Q${L(JW + 3)} 125 ${L(JS)} 101 L120 88 Z`;
+    const jox = 11 + jf / 2, jsw = 24 + jf;
+    const jSleeve = (X) => `M${X(JS)} 101 Q${X(JS + jox + 5)} 199 ${X(JS + jox)} 298 L${X(JS + jox - jsw)} 300 Q${X(JW + 3)} 234 ${X(JW - 1)} 168 Z`;
+    const open = `M93 104 L107 104 L107 ${jhem} L93 ${jhem} Z`;
+    jacketSVG = `<path d="${jTorso}" fill="${jHex}" stroke="var(--outline)" stroke-width="1.2" stroke-linejoin="round"/>
+    <path d="${jTorso}" fill="url(#shadeX)"/>
+    <path d="${jSleeve(R)} ${jSleeve(L)}" fill="${jHex}" stroke="var(--outline)" stroke-width="1.2" stroke-linejoin="round"/>
+    <path d="${jSleeve(R)} ${jSleeve(L)}" fill="url(#shadeX)" opacity=".7"/>
+    <path d="${open}" fill="${topHex}" stroke="var(--outline)" stroke-width="1"/>
+    <path d="M93 104 L86 92 M107 104 L114 92" stroke="var(--outline)" stroke-width="1.2" fill="none"/>`;
+  }
   const k = p.k;
-  const label = `Silhouette : ${top ? top.name : 'aucun haut'}, ${bottom ? bottom.name : 'aucun bas'}, ${shoes ? shoes.name : 'aucune chaussure'}`;
+  const label = `Silhouette : ${top ? top.name : 'aucun haut'}${jacket ? ', ' + jacket.name : ''}, ${bottom ? bottom.name : 'aucun bas'}, ${shoes ? shoes.name : 'aucune chaussure'}`;
   return `<svg role="img" aria-label="${esc(label)}" width="140" height="420" viewBox="0 0 200 600">
   <defs><linearGradient id="shadeX" x1="0" y1="0" x2="1" y2="0">
     <stop offset="0" stop-color="#000" stop-opacity=".22"/><stop offset=".3" stop-color="#fff" stop-opacity=".08"/>
@@ -129,6 +148,7 @@ export function figureSVG({ top, bottom, shoes, avatar }) {
     <path d="${torso}" fill="url(#shadeX)"/>
     <path d="${sleeve(R)} ${sleeve(L)}" fill="${topHex}" stroke="var(--outline)" stroke-width="1.2" stroke-linejoin="round"/>
     <path d="${sleeve(R)} ${sleeve(L)}" fill="url(#shadeX)" opacity=".7"/>
+    ${jacketSVG}
     <path d="${hand(R(wx + 1))} ${hand(L(wx + 1))}" fill="${p.skin}"/>
   </g>
   ${headSVG(p, false)}
@@ -141,8 +161,8 @@ function garmentShapes(item) {
   const dark = isDark(item.color_hex);
   let r = { body: '', backBody: '', detail: '', dots: '', backDetail: '', backFill: 'none', sole: '', backSole: '', soleHex: 'none', tf: '', backTf: '', detailStroke: dark ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.3)' };
 
-  if (cat === 'haut') {
-    const short = type === 'T-shirt';
+  if (cat === 'haut' || cat === 'veste') {
+    const short = cat === 'haut' && type === 'T-shirt';
     const front = short ? 'M40 14 Q60 26 80 14 L98 20 L112 46 L98 54 L90 42 L90 108 L30 108 L30 42 L22 54 L8 46 L22 20 Z'
       : 'M40 14 Q60 26 80 14 L98 20 Q108 48 114 82 L102 86 Q96 64 90 46 L90 108 L30 108 L30 46 Q24 64 18 86 L6 82 Q12 48 22 20 Z';
     r.body = front; r.backBody = front.replace('Q60 26 80 14', 'Q60 19 80 14');
@@ -150,7 +170,7 @@ function garmentShapes(item) {
     if (type === 'T-shirt') r.detail = 'M44 17 Q60 28 76 17';
     if (type === 'Pull') { r.detail = 'M30 102 L90 102 M102 80 L113 76 M18 80 L7 76 M44 17 Q60 28 76 17'; r.backDetail = 'M30 102 L90 102 M40 14 Q60 19 80 14'; }
     if (type === 'Sweat') { r.detail = 'M42 14 Q60 4 78 14 M42 80 L78 80 L83 98 L37 98 Z M30 102 L90 102 M56 22 L55 34 M64 22 L65 34'; r.backDetail = 'M42 14 Q60 40 78 14 Q60 8 42 14 Z'; r.backFill = 'rgba(0,0,0,.12)'; }
-    if (type === 'Veste') { r.detail = 'M40 14 L50 42 L60 24 L70 42 L80 14 M60 24 L60 108 M36 76 L48 76 M72 76 L84 76'; r.dots = circ(60, 56, 2.5) + circ(60, 74, 2.5) + circ(60, 92, 2.5); r.backDetail = 'M40 14 Q60 22 80 14 L80 10 Q60 16 40 10 Z M60 70 L60 108'; r.backFill = 'rgba(0,0,0,.1)'; }
+    if (cat === 'veste' || type === 'Veste') { r.detail = 'M40 14 L50 42 L60 24 L70 42 L80 14 M60 24 L60 108 M36 76 L48 76 M72 76 L84 76'; r.dots = circ(60, 56, 2.5) + circ(60, 74, 2.5) + circ(60, 92, 2.5); r.backDetail = 'M40 14 Q60 22 80 14 L80 10 Q60 16 40 10 Z M60 70 L60 108'; r.backFill = 'rgba(0,0,0,.1)'; }
     if (type === 'Chemise') { r.detail = 'M42 12 L52 26 L60 18 L68 26 L78 12 M60 18 L60 108 M36 40 L48 40 L48 50 L36 50 Z'; r.dots = [34, 50, 66, 82, 98].map((y) => circ(60, y, 1.5)).join(' '); r.backDetail = 'M42 12 Q60 20 78 12 M34 30 L86 30'; }
     const k = fit === 'Ample' ? 1.07 : fit === 'Ajusté' ? 0.93 : 1, ky = fit === 'Ample' ? 1.04 : 1;
     r.tf = r.backTf = `translate(60 60) scale(${k} ${ky}) translate(-60 -60)`;
@@ -199,11 +219,12 @@ export function garmentSVG(item, side = 'front') {
   const body = back ? r.backBody : r.body, detail = back ? r.backDetail : r.detail, sole = back ? r.backSole : r.sole;
   const tr = back ? (r.backTf || r.tf) : r.tf;
   const vs = 'vector-effect="non-scaling-stroke"';
+  const fillHex = safeColor(item.color_hex);
   return `<svg aria-hidden="true" viewBox="0 0 120 120">
   <defs><linearGradient id="shadeH" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".14"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".18"/></linearGradient></defs>
   <g transform="${tr || ''}">
     ${sole ? `<path d="${sole}" fill="${r.soleHex}" stroke="var(--outline)" stroke-width="1.3" ${vs}/>` : ''}
-    <path d="${body}" fill="${item.color_hex}" fill-rule="evenodd" stroke="var(--outline)" stroke-width="1.3" stroke-linejoin="round" ${vs}/>
+    <path d="${body}" fill="${fillHex}" fill-rule="evenodd" stroke="var(--outline)" stroke-width="1.3" stroke-linejoin="round" ${vs}/>
     <path d="${body}" fill="url(#shadeH)" fill-rule="evenodd"/>
     <path d="${detail}" fill="${back ? r.backFill : 'none'}" stroke="${r.detailStroke}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" ${vs}/>
     ${!back && r.dots ? `<path d="${r.dots}" fill="${r.detailStroke}"/>` : ''}

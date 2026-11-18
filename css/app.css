@@ -172,3 +172,22 @@ button { cursor: pointer; }
 .spinner { width: 28px; height: 28px; border-radius: 14px; border: 3px solid var(--line2); border-top-color: var(--accent); animation: spin .8s linear infinite; margin: 40px auto; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* --- ajouts étape 1-2 --- */
+.toast.err { background: var(--danger); color: #fff; white-space: normal; text-align: center; width: max-content; max-width: min(90vw, 420px); }
+.info { color: var(--fg); background: var(--chip); font-size: 13px; padding: 10px 12px; border-radius: 12px; }
+.mini-x { width: 32px; height: 32px; border-radius: 16px; border: none; background: var(--chip); color: var(--muted); display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0; }
+.fav-badge { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 13px; background: var(--surface); color: var(--danger); display: flex; align-items: center; justify-content: center; }
+.icon-btn.on { color: var(--danger); }
+.icon-btn:disabled, .rail-btn:disabled { opacity: .5; }
+.more-toggle { align-self: flex-start; border: none; background: none; color: var(--accent); font-weight: 600; font-size: 14px; padding: 8px 0; min-height: 44px; }
+.field-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) 76px; gap: 8px; }
+.check { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; min-height: 44px; }
+.check input { width: 22px; height: 22px; accent-color: var(--accent); }
+.seg button { padding: 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail { gap: 6px; }
+.rail-btn { height: 60px; }
+@media (max-height: 700px) { .rail-btn { height: 54px; gap: 3px; } .rail-btn svg { width: 20px; height: 20px; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
