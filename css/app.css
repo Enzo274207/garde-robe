@@ -285,7 +285,8 @@ h1.h-font { margin: 0; font-size: clamp(30px, 9vw, 38px); line-height: .92; lett
 .photo-slot input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .photo-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .photo-slot.cut img { background: #F4F3EF; filter: drop-shadow(0 4px 6px rgba(0,0,0,.18)); }
-.cut-seg button { font-size: 12px; }
+.cut-seg { padding: 2px; }
+.cut-seg button { font-size: 11px; padding: 0 1px; letter-spacing: -.01em; }
 .cut-busy { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; background: rgba(244,243,239,.85); color: #0D0D0D; font-size: 13px; font-weight: 600; }
 .cut-busy .spinner { margin: 0; width: 22px; height: 22px; border-top-color: #0D0D0D; }
 .cut-msg { margin: 0; font-size: 12px; line-height: 1.35; color: var(--danger); }

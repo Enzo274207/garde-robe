@@ -2,6 +2,7 @@ import { CATEGORIES, CAT_ORDER, PALETTE, AV, DEFAULT_AVATAR, SEASONS, STYLES, WA
 import { faceSVG, garmentSVG, esc } from './draw.js';
 import { flatlaySVG } from './flatlay.js';
 import { cutout, isCutPath } from './cutout.js';
+import { toonify } from './toon.js';
 import { demo, online, isDemo, today } from './store.js';
 import { createSync } from './sync.js';
 import { compressImage } from './image.js';
@@ -469,9 +470,10 @@ function viewImport() {
   const f = S.sheet.form, C = CATEGORIES[f.category];
   const slot = (side, label) => {
     const url = f[side + 'Preview'], busy = f[side + 'Busy'];
-    const isCut = f[side] ? (f[side + 'Use'] === 'cut' && !!f[side + 'Cut']) : f[side + 'IsCut'];
+    const isCut = f[side] ? (f[side + 'Use'] !== 'raw' && !!f[side + 'Cut']) : f[side + 'IsCut'];
+    const opt = (v, txt) => (v === 'toon' && !f[side + 'Toon'] ? '' : `<button type="button" data-act="useCut" data-side="${side}" data-v="${v}" aria-pressed="${f[side + 'Use'] === v}">${txt}</button>`);
     const tools = busy ? '' : f[side + 'Cut'] && f[side + 'Raw']
-      ? `<div class="seg cut-seg" role="group" aria-label="Photo ${label.toLowerCase()}"><button type="button" data-act="useCut" data-side="${side}" data-v="cut" aria-pressed="${f[side + 'Use'] === 'cut'}">Détourée</button><button type="button" data-act="useCut" data-side="${side}" data-v="raw" aria-pressed="${f[side + 'Use'] === 'raw'}">D’origine</button></div>`
+      ? `<div class="seg cut-seg" role="group" aria-label="Photo ${label.toLowerCase()}">${opt('toon', 'Cartoon')}${opt('cut', 'Détourée')}${opt('raw', 'Origine')}</div>`
       : url && !f[side] && !f[side + 'IsCut'] ? `<button type="button" class="more-toggle" data-act="cutExisting" data-side="${side}">Détourer cette photo</button>` : '';
     return `<div class="photo-col"><label class="photo-slot ${isCut ? 'cut' : ''}">${url ? `<img src="${esc(url)}" alt="Aperçu ${label.toLowerCase()}"><button type="button" class="x" data-act="clearPhoto" data-side="${side}" aria-label="Retirer la photo">${ico('close', 14, 2.2)}</button>` : `${ico('cam', 26, 1.6)}${label}`}
       ${busy ? '<span class="cut-busy" role="status"><span class="spinner"></span>Détourage…</span>' : ''}
@@ -580,8 +582,8 @@ function newForm(cat = 'haut') {
     secondary_colors: [], seasons: [], style: null, warmth: null, formality: null, material: '', brand: '', size: '', favorite: false,
     front: null, back: null, frontPreview: null, backPreview: null,
     // détourage : version détourée / d'origine, choix, message, en cours
-    frontCut: null, frontRaw: null, frontUse: 'cut', frontMsg: '', frontBusy: false, frontIsCut: false,
-    backCut: null, backRaw: null, backUse: 'cut', backMsg: '', backBusy: false, backIsCut: false
+    frontCut: null, frontToon: null, frontRaw: null, frontUse: 'toon', frontMsg: '', frontBusy: false, frontIsCut: false,
+    backCut: null, backToon: null, backRaw: null, backUse: 'toon', backMsg: '', backBusy: false, backIsCut: false
   };
 }
 function currentOutfit() {
@@ -695,13 +697,13 @@ const actions = {
   iFormality(el) { const f = S.sheet.form, v = Number(el.dataset.v); f.formality = f.formality === v ? null : v; render(); },
   clearPhoto(el, ev) {
     ev.preventDefault(); const f = S.sheet.form, s = el.dataset.side; dropPreview(f[s + 'Preview']);
-    Object.assign(f, { [s]: null, [s + 'Preview']: null, [s + 'Cut']: null, [s + 'Raw']: null, [s + 'Msg']: '', [s + 'IsCut']: false });
+    Object.assign(f, { [s]: null, [s + 'Preview']: null, [s + 'Cut']: null, [s + 'Toon']: null, [s + 'Raw']: null, [s + 'Msg']: '', [s + 'IsCut']: false });
     render();
   },
   // choisir entre la version détourée et la photo d'origine
   useCut(el) {
     const f = S.sheet.form, s = el.dataset.side, v = el.dataset.v;
-    const blob = v === 'cut' ? f[s + 'Cut'] : f[s + 'Raw']; if (!blob) return;
+    const blob = { toon: f[s + 'Toon'], cut: f[s + 'Cut'], raw: f[s + 'Raw'] }[v]; if (!blob) return;
     dropPreview(f[s + 'Preview']); f[s] = blob; f[s + 'Use'] = v; f[s + 'Preview'] = makePreview(blob); render();
   },
   // détourer une photo déjà enregistrée (pièces importées avant le détourage)
@@ -840,10 +842,14 @@ async function applyPhoto(side, file, keepRawPreview) {
     const raw = await compressImage(file);
     let cut = null;
     try { cut = await cutout(file); } catch (e) { cut = { ok: false, reason: 'Détourage impossible sur cette image.' }; }
+    // version cartoon (même silhouette, mêmes couleurs, logo conservé) à partir de la photo détourée
+    let toon = null;
+    if (cut.ok) { try { const t = await toonify(cut.blob); toon = t.ok ? t.blob : null; } catch (e) { toon = null; } }
     if (S.sheet?.form !== f) return;   // panneau fermé entre-temps
     dropPreview(f[side + 'Preview']);
-    f[side + 'Raw'] = raw; f[side + 'Cut'] = cut.ok ? cut.blob : null; f[side + 'Use'] = cut.ok ? 'cut' : 'raw';
-    f[side] = cut.ok ? cut.blob : raw; f[side + 'Preview'] = makePreview(f[side]);
+    f[side + 'Raw'] = raw; f[side + 'Cut'] = cut.ok ? cut.blob : null; f[side + 'Toon'] = toon;
+    f[side + 'Use'] = toon ? 'toon' : cut.ok ? 'cut' : 'raw';
+    f[side] = toon || (cut.ok ? cut.blob : raw); f[side + 'Preview'] = makePreview(f[side]);
     f[side + 'Msg'] = cut.ok ? '' : cut.reason;
     // couleur proposée d'après le vêtement détouré (tant qu'elle n'a pas été choisie à la main)
     if (cut.ok && cut.rgb && side === 'front' && !f.colorTouched && !S.sheet.editId) {
@@ -854,7 +860,7 @@ async function applyPhoto(side, file, keepRawPreview) {
       const best = PALETTE.reduce((a, b) => (d(b.hex) < d(a.hex) ? b : a));
       f.color_hex = best.hex; f.color_name = best.label;
     }
-    if (!cut.ok && keepRawPreview) { f[side] = null; f[side + 'Raw'] = null; }   // rien à changer sur une photo existante
+    if (!cut.ok && keepRawPreview) { f[side] = null; f[side + 'Raw'] = null; f[side + 'Toon'] = null; }   // rien à changer sur une photo existante
   } catch (e) { toast('Photo illisible, essaie une autre image', 'err'); }
   f[side + 'Busy'] = false; render();
 }
