@@ -3,6 +3,7 @@ import { figureSVG, faceSVG, garmentSVG, esc } from './draw.js';
 import { demo, online, isDemo, today } from './store.js';
 import { createSync } from './sync.js';
 import { compressImage } from './image.js';
+import { createAvatar3D } from './avatar3d.js';
 
 /* ---------------- icônes ---------------- */
 const P = {
@@ -34,6 +35,10 @@ const ico = (k, size = 22, sw = 1.7, fill = 'none') => `<svg aria-hidden="true" 
 const col = (hex) => safeColor(hex);
 // En ligne : couche hors connexion par-dessus Supabase. Démo : stockage local direct.
 const store = isDemo ? demo : createSync(online);
+// Avatar 3D (WebGL). Si l'appareil ne le permet pas, on garde le dessin 2D.
+let av3d = null;
+try { av3d = createAvatar3D(); } catch (e) { av3d = null; }
+av3d?.onLost(() => { av3d = null; render(); });
 
 /* ---------------- état ---------------- */
 const S = {
@@ -202,6 +207,13 @@ function render() {
   if (S.user && S.sheet?.kind === 'sync') html += viewSync();
   if (S.toast) html += `<div class="toast ${S.toast.kind === 'err' ? 'err' : ''}" role="${S.toast.kind === 'err' ? 'alert' : 'status'}">${esc(S.toast.msg)}</div>`;
   app.innerHTML = html;
+  const slot = document.getElementById('av3d-slot');
+  if (slot && av3d) {
+    const top = item(S.sel.haut), bottom = item(S.sel.bas), shoes = item(S.sel.chaussures), jacket = item(S.sel.veste);
+    const label = `Avatar : ${top ? top.name : 'aucun haut'}${jacket ? ', ' + jacket.name : ''}, ${bottom ? bottom.name : 'aucun bas'}, ${shoes ? shoes.name : 'aucune chaussure'}`;
+    slot.appendChild(av3d.el);
+    av3d.update({ top, bottom, shoes, jacket, avatar: S.profile.avatar, label });
+  }
   app.classList.toggle('is-home', !!(S.ready && S.user && !S.loadErr && S.route.name === 'home'));
   const nb = document.querySelector('.sheet-body'); if (nb) nb.scrollTop = keep;
   if (focusId) document.getElementById(focusId)?.focus();
@@ -286,7 +298,7 @@ function viewHome() {
       <span class="stage-word" aria-hidden="true">${esc(dateFr(new Date(), { weekday: 'long' }))}</span>
       <span class="sticker" role="status">${esc(S.note)}</span>
       <div class="figure-wrap">
-        ${figureSVG({ top, bottom, shoes, jacket, avatar: S.profile.avatar })}
+        ${av3d ? '<div class="av3d-slot" id="av3d-slot"></div>' : figureSVG({ top, bottom, shoes, jacket, avatar: S.profile.avatar })}
         ${arrow('haut', -1, 33, 'Haut précédent')}${arrow('haut', 1, 33, 'Haut suivant')}
         ${arrow('bas', -1, 70, 'Bas précédent')}${arrow('bas', 1, 70, 'Bas suivant')}
         ${arrow('chaussures', -1, 95, 'Chaussures précédentes')}${arrow('chaussures', 1, 95, 'Chaussures suivantes')}

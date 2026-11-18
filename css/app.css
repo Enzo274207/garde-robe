@@ -155,7 +155,12 @@ h1.h-font { margin: 0; font-size: clamp(30px, 9vw, 38px); line-height: .92; lett
 }
 /* avatar + flèches : un bloc qui suit la hauteur disponible, flèches collées à la silhouette */
 .figure-wrap { position: relative; z-index: 1; height: 100%; display: flex; justify-content: center; padding: 0 50px; }
-.figure-wrap > svg { height: 100%; width: auto; aspect-ratio: 1 / 3; }
+.figure-wrap > svg, .av3d-slot { height: 100%; width: auto; aspect-ratio: 1 / 3; }
+/* avatar 3D : canvas transparent + ombre de contact sous les pieds */
+.av3d-slot { position: relative; isolation: isolate; }
+.av3d-slot::after { content: ""; position: absolute; z-index: -1; left: 8%; right: 8%; bottom: 2.5%; height: 5%; border-radius: 50%; background: radial-gradient(closest-side, rgba(0,0,0,.32), rgba(0,0,0,0)); }
+.av3d { display: block; width: 100%; height: 100%; touch-action: pan-y; cursor: grab; outline-offset: 4px; }
+.av3d.grab { cursor: grabbing; }
 .arrow {
   position: absolute; z-index: 2; width: 44px; height: 44px; padding: 0;
   top: clamp(0px, calc(var(--y) * 1% - 22px), calc(100% - 44px));   /* --y : centre de la zone en % de la hauteur */
