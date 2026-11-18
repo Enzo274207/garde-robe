@@ -42,12 +42,13 @@ function defs(id, mat, hex) {
   </defs>`;
 }
 // Pièce de tissu : couleur, motif, bruit, ombrage, le tout découpé à la forme
-function cloth(id, d, hex, mat, extra = '') {
+function cloth(id, d, hex, mat, extra = '', decor = '') {
   return `<clipPath id="c${id}"><path d="${d}"/></clipPath>
   <g filter="url(#s${id})"><path d="${d}" fill="${hex}"/></g>
   <g clip-path="url(#c${id})">
     ${['denim', 'twill', 'knit', 'canvas', 'mesh', 'poplin'].includes(mat) ? `<rect width="100%" height="100%" fill="url(#p${id})"/>` : ''}
     <rect width="100%" height="100%" filter="url(#n${id})"/>
+    ${decor}
     <rect width="100%" height="100%" fill="url(#gx${id})"/><rect width="100%" height="100%" fill="url(#gy${id})"/>
     ${mat === 'leather' || mat === 'nylon' ? `<rect x="22%" y="0" width="14%" height="100%" fill="url(#sh${id})" transform="skewX(-12)"/><rect x="66%" y="0" width="8%" height="100%" fill="url(#sh${id})" opacity=".6" transform="skewX(-12)"/>` : ''}
     ${extra}
@@ -56,10 +57,10 @@ function cloth(id, d, hex, mat, extra = '') {
 const fold = (id, d, light = false) => `<path d="${d}" fill="none" stroke="${light ? '#fff' : '#000'}" stroke-opacity="${light ? 0.16 : 0.14}" stroke-width="3" stroke-linecap="round" filter="url(#b${id})"/>`;
 const stitch = (d, c, w = 0.9) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w}" stroke-dasharray="2.4 1.6" stroke-linecap="round"/>`;
 const line = (d, c, w = 1.2, o = 1) => `<path d="${d}" fill="none" stroke="${c}" stroke-opacity="${o}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
-const wrap = (vb, inner, label) => `<svg viewBox="${vb}" role="img" aria-label="${label}" preserveAspectRatio="xMidYMid meet">${inner}</svg>`;
+const wrap = (vb, inner, label) => `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${vb}" role="img" aria-label="${label}" preserveAspectRatio="xMidYMid meet">${inner}</svg>`;
 
 /* ---------- hauts et vestes (cadre 200 × 200, manteau 200 × 290) ---------- */
-function top(it, id, hex, mat) {
+function top(it, id, hex, mat, decor = '') {
   const t = it.type, fit = it.fit || 'Regular', w = { 'Ajusté': -6, Regular: 0, Ample: 10 }[fit] || 0;
   const L = 44 - w, R = 156 + w, dk = shade(hex, 0.72), st = shade(hex, lum(hex) > 0.5 ? 0.7 : 1.45);
   const cuff = (x1, x2, y) => line(`M${x1} ${y} L${x2} ${y + 2}`, dk, 1.1, 0.8);
@@ -92,14 +93,14 @@ function top(it, id, hex, mat) {
     }
     if (t === 'Veste') out += lapels(hex, dk);
   }
-  return cloth(id, d, hex, mat, out);
+  return cloth(id, d, hex, mat, out, decor);
 }
 function lapels(hex, dk) {
   return `<path d="M72 24 L100 104 L128 24 L118 20 L100 80 L82 20 Z" fill="${shade(hex, 0.9)}" stroke="${dk}" stroke-width=".8"/>
     <path d="M100 104 L100 194" stroke="${dk}" stroke-width="1" opacity=".6"/>
     <circle cx="100" cy="128" r="2.6" fill="${dk}"/><circle cx="100" cy="156" r="2.6" fill="${dk}"/>`;
 }
-function jacket(it, id, hex, mat) {
+function jacket(it, id, hex, mat, decor = '') {
   const t = it.type, long = t === 'Manteau', H = long ? 280 : 196, w = { 'Ajusté': -4, Regular: 2, Ample: 12 }[it.fit] || 2;
   const L = 40 - w, R = 160 + w, dk = shade(hex, 0.7), st = shade(hex, lum(hex) > 0.5 ? 0.7 : 1.5);
   const d = `M70 22 Q100 34 130 22 L${R + 4} 30 Q${R + 26} 40 ${R + 30} 64 L198 ${long ? 214 : 176} L174 ${long ? 220 : 182} L${R + 4} 96 L${R + (long ? 8 : 0)} ${H} L${L - (long ? 8 : 0)} ${H} L${200 - R - 4} 96 L26 ${long ? 220 : 182} L2 ${long ? 214 : 176} L${200 - R - 30} 64 Q${200 - R - 26} 40 ${L - 4} 30 Z`;
@@ -120,7 +121,7 @@ function jacket(it, id, hex, mat) {
     if (long) out += `<circle cx="112" cy="212" r="2.8" fill="${dk}"/><circle cx="88" cy="212" r="2.8" fill="${dk}"/><path d="M${L + 4} 150 L${R - 4} 150" stroke="${dk}" stroke-width="7" opacity=".35"/>`;
     out += stitch(`M${L + 12} 150 L${L + 46} 150 M${R - 12} 150 L${R - 46} 150`, st, 1.1);
   }
-  return { svg: cloth(id, d, hex, mat, out), vb: `0 0 200 ${H + 6}` };
+  return { svg: cloth(id, d, hex, mat, out, decor), vb: `0 0 200 ${H + 6}` };
 }
 
 /* ---------- bas (cadre 120 × 270) ---------- */
@@ -205,12 +206,23 @@ function accessory(it, id, hex) {
 }
 
 /* ---------- point d'entrée ---------- */
-export function flatlaySVG(item) {
+// Torse (corps sans les manches) de chaque gabarit : sert à replacer un logo détecté sur une photo.
+export function torsoBox(item) {
+  if (item.category === 'veste') {
+    const w = { 'Ajusté': -4, Regular: 2, Ample: 12 }[item.fit] || 2, H = item.type === 'Manteau' ? 280 : 196;
+    return { x0: 40 - w, x1: 160 + w, y0: 22, y1: H };
+  }
+  const w = { 'Ajusté': -6, Regular: 0, Ample: 10 }[item.fit] || 0;
+  return { x0: 44 - w, x1: 156 + w, y0: 24, y1: 194 };
+}
+// logos : [{ href, x, y, w, h }] en coordonnées du gabarit, posés sur le tissu (texture et plis par-dessus)
+export function flatlaySVG(item, { logos = [] } = {}) {
   const id = ++uid, hex = safeColor(item.color_hex), label = String(item.name || item.type).replace(/[<>&"]/g, '');
   const mat = MATERIAL[item.type] || 'jersey';
+  const decor = logos.map((l) => `<image href="${l.href}" xlink:href="${l.href}" x="${l.x}" y="${l.y}" width="${l.w}" height="${l.h}" preserveAspectRatio="xMidYMid meet"/>`).join('');
   if (item.category === 'chaussures') return shoes(item, id, hex);
   if (item.category === 'accessoire') return accessory(item, id, hex);
   if (item.category === 'bas') return wrap('0 0 120 270', defs(id, mat, hex) + bottom(item, id, hex, mat), label);
-  if (item.category === 'veste') { const j = jacket(item, id, hex, mat); return wrap(j.vb, defs(id, mat, hex) + j.svg, label); }
-  return wrap('0 0 200 200', defs(id, mat, hex) + top(item, id, hex, mat), label);
+  if (item.category === 'veste') { const j = jacket(item, id, hex, mat, decor); return wrap(j.vb, defs(id, mat, hex) + j.svg, label); }
+  return wrap('0 0 200 200', defs(id, mat, hex) + top(item, id, hex, mat, decor), label);
 }
