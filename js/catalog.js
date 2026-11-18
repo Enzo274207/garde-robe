@@ -46,6 +46,7 @@ export const PALETTE = [
   { label: 'Gris', hex: '#8C8C8C', neutral: true },
   { label: 'Marine', hex: '#27324F', neutral: true },
   { label: 'Bleu', hex: '#3D63A8', neutral: false },
+  { label: 'Bleu ciel', hex: '#9DBBD6', neutral: false },
   { label: 'Beige', hex: '#CDB892', neutral: true },
   { label: 'Marron', hex: '#6B4A32', neutral: true },
   { label: 'Vert', hex: '#5F7A57', neutral: false },

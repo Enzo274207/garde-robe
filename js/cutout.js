@@ -104,6 +104,18 @@ export async function cutout(blob, max = MAX_SIDE, sens = 1) {
     if (y < H - 1 && ok(p + W)) { isBg[p + W] = 1; queue[qt++] = p + W; }
   }
 
+  // 2 bis. bande de bord (12 px) : ce qui a la couleur du fond est rendu au fond.
+  // Utile sur fond texturé (moquette, drap froissé) où la texture elle-même arrête le remplissage.
+  let mD = 0, nD = 0; for (let p = 0; p < N; p += 7) if (isBg[p]) { mD += D[p]; nD++; }
+  mD = nD ? mD / nD : 0; let vD = 0; for (let p = 0; p < N; p += 7) if (isBg[p]) vD += (D[p] - mD) ** 2;
+  const sD = nD ? Math.sqrt(vD / nD) : 0, thr = Math.min(HI, Math.max(tol, mD + 2.5 * sD));
+  const BAND = Math.max(6, Math.round(Math.min(W, H) * 0.012)), dst = new Uint8Array(N).fill(255);
+  qh = qt = 0; for (let p = 0; p < N; p++) if (isBg[p]) { dst[p] = 0; queue[qt++] = p; }
+  while (qh < qt) {
+    const p = queue[qh++], x = p % W, dp = dst[p]; if (dp >= BAND) continue;
+    for (const q of [x > 0 ? p - 1 : -1, x < W - 1 ? p + 1 : -1, p - W, p + W]) if (q >= 0 && q < N && dst[q] === 255) { dst[q] = dp + 1; if (D[q] < thr && Gm[q] >= edgeT * 0.6) isBg[q] = 1; queue[qt++] = q; }   // couleur du fond ET grain du fond
+  }
+
   // 3. opacité : fond transparent ; la bande de contour qui ressemble au fond (ombre, liseré) est rognée
   const A = new Uint8ClampedArray(N);
   for (let p = 0; p < N; p++) A[p] = isBg[p] ? 0 : 255;
