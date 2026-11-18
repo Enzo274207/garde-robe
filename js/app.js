@@ -202,6 +202,7 @@ function render() {
   if (S.user && S.sheet?.kind === 'sync') html += viewSync();
   if (S.toast) html += `<div class="toast ${S.toast.kind === 'err' ? 'err' : ''}" role="${S.toast.kind === 'err' ? 'alert' : 'status'}">${esc(S.toast.msg)}</div>`;
   app.innerHTML = html;
+  app.classList.toggle('is-home', !!(S.ready && S.user && !S.loadErr && S.route.name === 'home'));
   const nb = document.querySelector('.sheet-body'); if (nb) nb.scrollTop = keep;
   if (focusId) document.getElementById(focusId)?.focus();
   document.body.style.overflow = S.sheet || S.detail ? 'hidden' : '';
@@ -271,11 +272,12 @@ function slotBtn(cat, label) {
 function viewHome() {
   const top = item(S.sel.haut), bottom = item(S.sel.bas), shoes = item(S.sel.chaussures), jacket = item(S.sel.veste);
   const n = { haut: byCat('haut').length, bas: byCat('bas').length, chaussures: byCat('chaussures').length };
-  const arrow = (cat, side, y, label) => `<button class="arrow ${side === -1 ? 'l' : 'r'}" style="top:${y}px" data-act="step" data-cat="${cat}" data-d="${side}" aria-label="${label}" ${n[cat] < 2 ? 'disabled' : ''}>${ico(side === -1 ? 'left' : 'right', 22, 2.2)}</button>`;
+  // y : centre de la zone (haut, bas, chaussures) en % de la hauteur de la silhouette
+  const arrow = (cat, side, y, label) => `<button class="arrow ${side === -1 ? 'l' : 'r'}" style="--y:${y}" data-act="step" data-cat="${cat}" data-d="${side}" aria-label="${label}" ${n[cat] < 2 ? 'disabled' : ''}>${ico(side === -1 ? 'left' : 'right', 22, 2.2)}</button>`;
   const wornToday = S.wears.find((w) => w.worn_on === today());
   const isWorn = wornToday && wornToday.top_id === S.sel.haut && wornToday.bottom_id === S.sel.bas && wornToday.shoes_id === S.sel.chaussures && (wornToday.jacket_id || null) === (S.sel.veste || null);
   const dark = document.documentElement.dataset.theme === 'dark';
-  return `${demoBanner()}<main class="screen">
+  return `${demoBanner()}<main class="screen home">
     <header class="home-head">
       <div><div class="kicker">${cap(dateFr(new Date(), { weekday: 'long', day: 'numeric', month: 'long' }))}</div><h1 class="h-font display">Fit du jour</h1></div>
       <button class="icon-btn" data-act="theme" aria-pressed="${dark}" aria-label="${dark ? 'Passer en mode clair' : 'Passer en mode sombre'}">${ico('moon', 20, 1.9, dark ? 'currentColor' : 'none')}</button>
@@ -285,29 +287,30 @@ function viewHome() {
       <span class="sticker" role="status">${esc(S.note)}</span>
       <div class="figure-wrap">
         ${figureSVG({ top, bottom, shoes, jacket, avatar: S.profile.avatar })}
-        ${arrow('haut', -1, 118, 'Haut précédent')}${arrow('haut', 1, 118, 'Haut suivant')}
-        ${arrow('bas', -1, 286, 'Bas précédent')}${arrow('bas', 1, 286, 'Bas suivant')}
-        ${arrow('chaussures', -1, 378, 'Chaussures précédentes')}${arrow('chaussures', 1, 378, 'Chaussures suivantes')}
+        ${arrow('haut', -1, 33, 'Haut précédent')}${arrow('haut', 1, 33, 'Haut suivant')}
+        ${arrow('bas', -1, 70, 'Bas précédent')}${arrow('bas', 1, 70, 'Bas suivant')}
+        ${arrow('chaussures', -1, 95, 'Chaussures précédentes')}${arrow('chaussures', 1, 95, 'Chaussures suivantes')}
       </div>
     </div>
     ${!S.items.length ? '<div class="info">Ta garde-robe est vide : touche <b>+</b> en bas pour importer ta première pièce.</div>' : ''}
     <section class="slots" aria-label="Tenue en cours">${SLOTS.map(([c, l]) => slotBtn(c, l)).join('')}</section>
     <div class="home-actions">
       <button class="btn accent" data-act="suggest">${ico('spark', 20, 1.9)}Suggestion</button>
-      <button class="btn ghost sq" data-act="saveOutfit" aria-label="Enregistrer la tenue" ${S.busy ? 'disabled' : ''}>${ico('save', 20, 1.9)}</button>
+      <button class="btn dark" data-act="wear" aria-label="${isWorn ? 'Tenue notée comme portée aujourd’hui' : 'Je la porte aujourd’hui'}" ${!top || !bottom || S.busy ? 'disabled' : ''}>${isWorn ? ico('check', 18, 2.2) + 'Portée' : 'Je la porte'}</button>
+      <button class="btn ghost sq" data-act="saveOutfit" aria-label="Enregistrer la tenue" title="Enregistrer la tenue" ${S.busy ? 'disabled' : ''}>${ico('save', 20, 1.9)}</button>
     </div>
-    <button class="btn dark" data-act="wear" ${!top || !bottom || S.busy ? 'disabled' : ''}>${isWorn ? ico('check', 18, 2.2) + 'Portée aujourd’hui' : 'Je la porte aujourd’hui'}</button>
   </main>`;
 }
 
 /* ---------------- choix d'une pièce depuis l'accueil ---------------- */
 function viewPick() {
   const cat = S.sheet.cat, C = CATEGORIES[cat], list = byCat(cat), cur = S.sel[cat];
-  const none = OPTIONAL.has(cat) ? `<button class="pick ${!cur ? 'on' : ''}" data-act="pick" data-cat="${cat}" data-id="" aria-pressed="${!cur}"><span class="pick-img none">${ico('close', 26, 1.8)}</span><b>${cat === 'veste' ? 'Sans veste' : 'Aucun'}</b></button>` : '';
-  const tiles = list.map((it) => `<button class="pick ${cur === it.id ? 'on' : ''}" data-act="pick" data-cat="${cat}" data-id="${it.id}" aria-pressed="${cur === it.id}"><span class="pick-img">${tileVisual(it)}</span><b>${esc(it.name)}</b></button>`).join('');
+  const check = `<span class="pick-check" aria-hidden="true">${ico('check', 15, 2.6)}</span>`;
+  const none = OPTIONAL.has(cat) ? `<button class="pick ${!cur ? 'on' : ''}" data-act="pick" data-cat="${cat}" data-id="" aria-pressed="${!cur}"><span class="pick-img none">${ico('close', 26, 1.8)}</span><b>${cat === 'veste' ? 'Sans veste' : 'Aucun'}</b><small>Retirer de la tenue</small>${!cur ? check : ''}</button>` : '';
+  const tiles = list.map((it) => `<button class="pick ${cur === it.id ? 'on' : ''}" data-act="pick" data-cat="${cat}" data-id="${it.id}" aria-pressed="${cur === it.id}"><span class="pick-img">${tileVisual(it)}</span><b>${esc(it.name)}</b><small>${esc([it.type, it.color_name].filter(Boolean).join(' · '))}</small>${cur === it.id ? check : ''}</button>`).join('');
   return `<div class="overlay" data-act="closeSheetBg"><div class="sheet" role="dialog" aria-modal="true" aria-label="Choisir : ${C.title}">
     <span class="grab"></span>
-    <div class="sheet-head"><h2 class="h-font">${C.title}</h2><button class="icon-btn" data-act="closeSheet" aria-label="Fermer">${ico('close', 18, 2)}</button></div>
+    <div class="sheet-head"><div><span class="kicker sheet-kicker">Choisir · ${list.length} pièce${list.length > 1 ? 's' : ''}</span><h2 class="h-font">${C.title}</h2></div><button class="icon-btn" data-act="closeSheet" aria-label="Fermer">${ico('close', 18, 2)}</button></div>
     <div class="sheet-body">
       ${list.length ? `<div class="pick-grid">${none}${tiles}</div>
       <button class="more-toggle" data-act="pickBrowse" data-cat="${cat}">Voir toutes les ${C.title.toLowerCase()} (filtres) →</button>`
@@ -320,15 +323,17 @@ function viewPick() {
 /* ---------------- garde-robe ---------------- */
 function viewWardrobe() {
   const total = S.items.length, favs = S.items.filter((i) => i.favorite).length;
-  const thumb = (it) => (it.front_url ? `<img src="${esc(it.front_url)}" alt="" data-photo-img>` : `<span style="background:${col(it.color_hex)}"></span>`);
+  const thumb = (it) => (it.front_url ? `<img src="${esc(it.front_url)}" alt="" loading="lazy" data-photo-img>` : `<span>${garmentSVG(it, 'front')}</span>`);
   return `${demoBanner()}<main class="screen">
-    <header class="cat-head"><div class="t"><h1 class="h-font">Garde-robe</h1><span class="sub">${total} pièce${total > 1 ? 's' : ''}${favs ? ` · ${favs} favori${favs > 1 ? 's' : ''}` : ''}</span></div></header>
+    <header class="cat-head"><div class="t"><span class="kicker">Ma collection</span><h1 class="h-font">Garde-robe</h1><span class="sub">${total} pièce${total > 1 ? 's' : ''}${favs ? ` · ${favs} favori${favs > 1 ? 's' : ''}` : ''}</span></div></header>
     <div class="cats">${CAT_ORDER.map((cat) => {
-      const list = byCat(cat), C = CATEGORIES[cat];
-      return `<a class="cat-card" href="#/c/${cat}">
-        <span class="cat-ico">${ico(cat, 24, 1.8)}</span>
-        <span class="cat-t"><b class="h-font">${C.title}</b><span>${list.length} pièce${list.length > 1 ? 's' : ''}</span></span>
-        <span class="cat-thumbs" aria-hidden="true">${list.slice(0, 3).map(thumb).join('')}</span>${ico('chev', 18, 2)}</a>`;
+      const list = byCat(cat), C = CATEGORIES[cat], extra = list.length - 4;
+      const shown = extra > 0 ? list.slice(0, 3) : list.slice(0, 4);
+      return `<a class="cat-card" href="#/c/${cat}" aria-label="${C.title} : ${list.length} pièce${list.length > 1 ? 's' : ''}">
+        <span class="cat-top"><span class="cat-ico">${ico(cat, 20, 1.8)}</span>
+          <span class="cat-t"><b class="h-font">${C.title}</b><span>${list.length} pièce${list.length > 1 ? 's' : ''}</span></span>${ico('chev', 18, 2)}</span>
+        ${list.length ? `<span class="cat-thumbs" aria-hidden="true">${shown.map(thumb).join('')}${extra > 0 ? `<span class="more">+${extra + 1}</span>` : ''}</span>`
+          : `<span class="cat-empty">Vide pour l’instant · importe ${C.one}</span>`}</a>`;
     }).join('')}</div>
   </main>`;
 }
@@ -339,16 +344,18 @@ function viewProfile() {
   const syncState = n.conflicts ? `${n.conflicts} à vérifier` : n.offline ? 'Hors connexion' : n.pending ? `${n.pending} en attente` : 'À jour';
   return `${demoBanner()}<main class="screen">
     <header class="cat-head"><div class="t"><h1 class="h-font">Profil</h1>${S.user?.email ? `<span class="sub">${esc(S.user.email)}</span>` : ''}</div></header>
-    <section class="profile-card">
+    <section class="profile-card" aria-label="Mon profil">
       <span class="pf-face">${faceSVG(S.profile.avatar, 84)}</span>
       <div style="min-width:0"><b class="h-font pf-name">${esc(S.profile.username || 'Moi')}</b>
         <div class="stats"><span><b>${S.items.length}</b>pièces</span><span><b>${S.outfits.length}</b>tenues</span><span><b>${S.wears.length}</b>jours</span></div></div>
     </section>
+    <h2 class="label-sec">Réglages</h2>
     <div class="menu">
       <button class="menu-row" data-act="openAvatar">${ico('avatar', 20, 1.8)}<span class="grow">Modifier mon avatar</span>${ico('chev', 18, 2)}</button>
       <button class="menu-row" data-act="theme" aria-pressed="${dark}">${ico('moon', 20, 1.8)}<span class="grow">Mode sombre</span><span class="toggle"><i></i></span></button>
       ${!isDemo ? `<button class="menu-row" data-act="openSync">${ico('retry', 20, 1.8)}<span class="grow">Synchronisation</span><span class="note">${syncState}</span></button>` : ''}
     </div>
+    <h2 class="label-sec">Compte</h2>
     <div class="menu">
       <button class="menu-row ${S.confirmSignOut ? 'confirm' : ''}" data-act="signOut" ${S.busy ? 'disabled' : ''}>${ico('logout', 20, 1.8)}<span class="grow">${S.confirmSignOut ? 'Se déconnecter quand même' : 'Se déconnecter'}</span></button>
       <button class="menu-row ${S.confirmAccount ? 'confirm' : 'danger'}" data-act="deleteAccount" ${S.busy ? 'disabled' : ''}>${ico('trash', 20, 1.8)}<span class="grow">${S.confirmAccount ? 'Confirmer : tout supprimer définitivement' : isDemo ? 'Réinitialiser la démo' : 'Supprimer mon compte et mes données'}</span></button>
