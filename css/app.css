@@ -146,35 +146,27 @@ h1.h-font { margin: 0; font-size: clamp(30px, 9vw, 38px); line-height: .92; lett
   display: flex; justify-content: center; padding: 14px 0 6px;
   border-radius: var(--r-lg); background: var(--tile);
 }
-/* jour de la semaine : décor vertical sur le bord gauche, derrière tout, hors de la zone des flèches */
-.stage-word {
-  position: absolute; z-index: 0; left: 2px; top: 50%; transform: translateY(-50%) rotate(180deg);
-  writing-mode: vertical-rl; font: 700 clamp(22px, 5.5svh, 38px)/1 "Space Grotesk", Inter, sans-serif; letter-spacing: -.04em;
-  text-transform: uppercase; color: transparent; -webkit-text-stroke: 1px var(--line2); opacity: .5;
-  white-space: nowrap; pointer-events: none;
-}
-/* avatar + flèches : un bloc qui suit la hauteur disponible, flèches collées à la silhouette */
-.figure-wrap { position: relative; z-index: 1; height: 100%; display: flex; justify-content: center; padding: 0 50px; }
-.figure-wrap > svg, .av3d-slot { height: 100%; width: auto; aspect-ratio: 1 / 3; }
-/* avatar 3D : canvas transparent + ombre de contact sous les pieds */
-.av3d-slot { position: relative; isolation: isolate; }
-.av3d-slot::after { content: ""; position: absolute; z-index: -1; left: 8%; right: 8%; bottom: 2.5%; height: 5%; border-radius: 50%; background: radial-gradient(closest-side, rgba(0,0,0,.32), rgba(0,0,0,0)); }
-.av3d { display: block; width: 100%; height: 100%; touch-action: pan-y; cursor: grab; outline-offset: 4px; }
-.av3d.grab { cursor: grabbing; }
-.arrow {
-  position: absolute; z-index: 2; width: 44px; height: 44px; padding: 0;
-  top: clamp(0px, calc(var(--y) * 1% - 22px), calc(100% - 44px));   /* --y : centre de la zone en % de la hauteur */
-  border-radius: var(--r); border: 1px solid var(--line); background: var(--surface); color: var(--fg);
-  display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px var(--shadow);
-}
-.arrow:disabled { opacity: .3; box-shadow: none; }
-.arrow.l { left: 0; } .arrow.r { right: 0; }
 .sticker {
-  position: absolute; z-index: 3; top: 12px; right: 12px; max-width: 32%;
+  position: absolute; z-index: 6; top: 12px; right: 12px; max-width: 40%;
   padding: 5px 8px; border-radius: var(--r-sm); background: var(--accent); color: var(--on-accent);
   font-size: 11px; font-weight: 700; line-height: 1.2; letter-spacing: .04em; text-transform: uppercase;
-  transform: rotate(3deg); box-shadow: 2px 2px 0 var(--fg);
+  transform: rotate(3deg); box-shadow: 2px 2px 0 #0D0D0D;
 }
+/* composition à plat : planche claire dans les deux thèmes, pièces posées et légèrement superposées.
+   mix-blend-mode: multiply fond le fond blanc des photos produit dans la planche. */
+.stage2.look { background: #F4F3EF; padding: 0; display: block; }
+[data-theme="dark"] .stage2.look { background: #EDEBE6; }
+.look-piece {
+  position: absolute; padding: 0; border: none; background: none; border-radius: var(--r-sm);
+  display: flex; align-items: center; justify-content: center; transform: rotate(var(--rot, 0deg));
+  touch-action: pan-y; -webkit-user-select: none; user-select: none; transition: transform .2s;
+}
+.look-piece:active { transform: rotate(var(--rot, 0deg)) scale(.97); }
+.look-piece.photo { mix-blend-mode: multiply; }   /* sur la pièce elle-même : la rotation crée un contexte isolé */
+.look-piece img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.look-piece svg { width: 100%; height: 100%; filter: drop-shadow(0 6px 8px rgba(0,0,0,.12)); --outline: rgba(13,13,13,.45); }
+.look-piece:focus-visible { outline: 2px solid #0D0D0D; outline-offset: 3px; }
+.look-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 30px; text-align: center; color: #5C5A55; font-size: 14px; }
 
 .slots { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 6px; }
 .slot {
@@ -203,7 +195,6 @@ h1.h-font { margin: 0; font-size: clamp(30px, 9vw, 38px); line-height: .92; lett
   .stage2 { min-height: 190px; padding-top: 8px; padding-bottom: 4px; }
   .slots { gap: 4px; }
   .slot-vis { width: 34px; height: 34px; }
-  .arrow[data-cat="bas"] { top: calc(64% - 22px); }   /* sinon chevauche la flèche des chaussures sous ~240 px */
 }
 
 /* ---------- choix d'une pièce ---------- */

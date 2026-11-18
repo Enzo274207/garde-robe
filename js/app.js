@@ -1,9 +1,8 @@
 import { CATEGORIES, CAT_ORDER, PALETTE, AV, DEFAULT_AVATAR, SEASONS, STYLES, WARMTH, FORMALITY, isNeutral, safeColor } from './catalog.js';
-import { figureSVG, faceSVG, garmentSVG, esc } from './draw.js';
+import { faceSVG, garmentSVG, esc } from './draw.js';
 import { demo, online, isDemo, today } from './store.js';
 import { createSync } from './sync.js';
 import { compressImage } from './image.js';
-import { createAvatar3D } from './avatar3d.js';
 
 /* ---------------- icônes ---------------- */
 const P = {
@@ -35,10 +34,6 @@ const ico = (k, size = 22, sw = 1.7, fill = 'none') => `<svg aria-hidden="true" 
 const col = (hex) => safeColor(hex);
 // En ligne : couche hors connexion par-dessus Supabase. Démo : stockage local direct.
 const store = isDemo ? demo : createSync(online);
-// Avatar 3D (WebGL). Si l'appareil ne le permet pas, on garde le dessin 2D.
-let av3d = null;
-try { av3d = createAvatar3D(); } catch (e) { av3d = null; }
-av3d?.onLost(() => { av3d = null; render(); });
 
 /* ---------------- état ---------------- */
 const S = {
@@ -207,14 +202,6 @@ function render() {
   if (S.user && S.sheet?.kind === 'sync') html += viewSync();
   if (S.toast) html += `<div class="toast ${S.toast.kind === 'err' ? 'err' : ''}" role="${S.toast.kind === 'err' ? 'alert' : 'status'}">${esc(S.toast.msg)}</div>`;
   app.innerHTML = html;
-  const slot = document.getElementById('av3d-slot');
-  if (slot && av3d) {
-    const top = item(S.sel.haut), bottom = item(S.sel.bas), shoes = item(S.sel.chaussures), jacket = item(S.sel.veste);
-    const label = `Avatar : ${top ? top.name : 'aucun haut'}${jacket ? ', ' + jacket.name : ''}, ${bottom ? bottom.name : 'aucun bas'}, ${shoes ? shoes.name : 'aucune chaussure'}`;
-    slot.appendChild(av3d.el);
-    av3d.update({ top, bottom, shoes, jacket, avatar: S.profile.avatar, label });
-  }
-  app.classList.toggle('is-home', !!(S.ready && S.user && !S.loadErr && S.route.name === 'home'));
   const nb = document.querySelector('.sheet-body'); if (nb) nb.scrollTop = keep;
   if (focusId) document.getElementById(focusId)?.focus();
   document.body.style.overflow = S.sheet || S.detail ? 'hidden' : '';
@@ -281,11 +268,27 @@ function slotBtn(cat, label) {
     <span class="slot-vis">${vis}</span><span class="slot-k">${label}</span><span class="slot-n">${name}</span></button>`;
 }
 
+/* ---------------- composition à plat (façon lookbook) ---------------- */
+// Positions en % de la zone : haut en haut à gauche, veste qui chevauche à droite,
+// bas en dessous, accessoire et chaussures sur la droite. Sans veste, l'accessoire remonte.
+const LOOK = {
+  withJacket: { veste: [47, 4, 49, 42, 0], haut: [5, 6, 46, 33, 0], bas: [9, 40, 44, 56, 0], accessoire: [60, 49, 28, 20, 6], chaussures: [54, 73, 42, 22, -6] },
+  noJacket: { haut: [8, 4, 52, 37, 0], accessoire: [62, 12, 30, 24, 6], bas: [12, 43, 44, 54, 0], chaussures: [56, 68, 40, 24, -6] }
+};
+const LOOK_LABEL = { haut: 'Haut', veste: 'Veste', bas: 'Bas', chaussures: 'Chaussures', accessoire: 'Accessoire' };
+function lookBoard() {
+  const L = S.sel.veste && item(S.sel.veste) ? LOOK.withJacket : LOOK.noJacket;
+  const pieces = Object.entries(L).map(([cat, [x, y, w, h, rot]]) => {
+    const it = item(S.sel[cat]); if (!it) return '';
+    const vis = it.front_url ? `<img src="${esc(it.front_url)}" alt="" data-photo-img draggable="false">` : garmentSVG(it, 'front');
+    return `<button class="look-piece ${it.front_url ? 'photo' : ''}" data-act="openPick" data-swipe="${cat}" data-cat="${cat}" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%;--rot:${rot}deg"
+      aria-label="${LOOK_LABEL[cat]} : ${esc(it.name)}. Toucher pour changer, glisser pour passer à la suivante">${vis}</button>`;
+  }).join('');
+  return pieces || '<div class="look-empty">Choisis un haut et un bas pour composer ta tenue.</div>';
+}
+
 function viewHome() {
   const top = item(S.sel.haut), bottom = item(S.sel.bas), shoes = item(S.sel.chaussures), jacket = item(S.sel.veste);
-  const n = { haut: byCat('haut').length, bas: byCat('bas').length, chaussures: byCat('chaussures').length };
-  // y : centre de la zone (haut, bas, chaussures) en % de la hauteur de la silhouette
-  const arrow = (cat, side, y, label) => `<button class="arrow ${side === -1 ? 'l' : 'r'}" style="--y:${y}" data-act="step" data-cat="${cat}" data-d="${side}" aria-label="${label}" ${n[cat] < 2 ? 'disabled' : ''}>${ico(side === -1 ? 'left' : 'right', 22, 2.2)}</button>`;
   const wornToday = S.wears.find((w) => w.worn_on === today());
   const isWorn = wornToday && wornToday.top_id === S.sel.haut && wornToday.bottom_id === S.sel.bas && wornToday.shoes_id === S.sel.chaussures && (wornToday.jacket_id || null) === (S.sel.veste || null);
   const dark = document.documentElement.dataset.theme === 'dark';
@@ -294,15 +297,9 @@ function viewHome() {
       <div><div class="kicker">${cap(dateFr(new Date(), { weekday: 'long', day: 'numeric', month: 'long' }))}</div><h1 class="h-font display">Fit du jour</h1></div>
       <button class="icon-btn" data-act="theme" aria-pressed="${dark}" aria-label="${dark ? 'Passer en mode clair' : 'Passer en mode sombre'}">${ico('moon', 20, 1.9, dark ? 'currentColor' : 'none')}</button>
     </header>
-    <div class="stage2">
-      <span class="stage-word" aria-hidden="true">${esc(dateFr(new Date(), { weekday: 'long' }))}</span>
+    <div class="stage2 look" aria-label="Tenue composée">
       <span class="sticker" role="status">${esc(S.note)}</span>
-      <div class="figure-wrap">
-        ${av3d ? '<div class="av3d-slot" id="av3d-slot"></div>' : figureSVG({ top, bottom, shoes, jacket, avatar: S.profile.avatar })}
-        ${arrow('haut', -1, 33, 'Haut précédent')}${arrow('haut', 1, 33, 'Haut suivant')}
-        ${arrow('bas', -1, 70, 'Bas précédent')}${arrow('bas', 1, 70, 'Bas suivant')}
-        ${arrow('chaussures', -1, 95, 'Chaussures précédentes')}${arrow('chaussures', 1, 95, 'Chaussures suivantes')}
-      </div>
+      ${lookBoard()}
     </div>
     ${!S.items.length ? '<div class="info">Ta garde-robe est vide : touche <b>+</b> en bas pour importer ta première pièce.</div>' : ''}
     <section class="slots" aria-label="Tenue en cours">${SLOTS.map(([c, l]) => slotBtn(c, l)).join('')}</section>
@@ -776,7 +773,18 @@ const actions = {
   }
 };
 
+let swipe = null, swallowUntil = 0;   // le clic qui suit un glissement est ignoré
+app.addEventListener('pointerdown', (ev) => {
+  const el = ev.target.closest('[data-swipe]');
+  swipe = el ? { cat: el.dataset.swipe, x: ev.clientX, y: ev.clientY } : null;
+});
+app.addEventListener('pointerup', (ev) => {
+  if (!swipe) return;
+  const dx = ev.clientX - swipe.x, dy = ev.clientY - swipe.y, cat = swipe.cat; swipe = null;
+  if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5 && byCat(cat).length > 1) { swallowUntil = ev.timeStamp + 80; step(cat, dx < 0 ? 1 : -1); }
+});
 app.addEventListener('click', (ev) => {
+  if (ev.timeStamp < swallowUntil) { ev.preventDefault(); return; }
   const el = ev.target.closest('[data-act]');
   if (!el || !app.contains(el)) return;
   if (S.busy && el.dataset.act !== 'closeSheet') return;   // évite les doubles envois

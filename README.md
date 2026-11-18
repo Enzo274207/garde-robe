@@ -77,8 +77,7 @@ css/app.css             styles, thèmes clair/sombre
 js/config.js            clés Supabase (vide = mode démo)
 js/app.js               écrans, navigation, actions
 js/store.js             données : Supabase ou mode démo (même interface)
-js/avatar3d.js          avatar 3D (WebGL natif, sans librairie) habillé avec les pièces
-js/draw.js              dessins SVG : visage, pièces, silhouette 2D de secours
+js/draw.js              dessins SVG : visage, pièces
 icons/icon.svg          icône de l'app
 js/catalog.js           catégories, types, couleurs, avatar, pièces d'exemple
 js/image.js             compression des photos avant envoi
@@ -88,7 +87,7 @@ supabase/schema.sql     base de données + sécurité + stockage
 ## Ce que fait la V1
 - Comptes (e-mail + mot de passe), données synchronisées entre appareils.
 - Navigation par onglets en bas : Tenue · Garde-robe · + (importer) · Historique · Profil. Style streetwear, clair/sombre.
-- Tenue (accueil) : avatar 3D habillé (glisser pour le faire tourner ; dessin 2D si WebGL indisponible), flèches haut / bas / chaussures, 5 emplacements (haut, veste, bas, chaussures, accessoire) : on touche un emplacement pour choisir la pièce, dont la veste.
+- Tenue (accueil) : composition à plat façon lookbook (photos des pièces posées et superposées ; toucher une pièce pour la changer, glisser pour passer à la suivante), flèches haut / bas / chaussures, 5 emplacements (haut, veste, bas, chaussures, accessoire) : on touche un emplacement pour choisir la pièce, dont la veste.
 - Suggestion de tenue : couleurs qui s'accordent + proportions (ample avec ajusté), en évitant ce qui a été porté récemment.
 - Import d'une pièce : photos recto/verso (appareil photo ou galerie, compressées automatiquement), nom, catégorie, type, couleur, coupe.
 - Garde-robe : vue d'ensemble des catégories, puis écrans Hauts / Bas / Vestes / Chaussures / Accessoires : filtres type, coupe, couleur, tri ; fiche avec carte qui pivote recto/verso ; modifier, supprimer, mettre sur l'avatar.
