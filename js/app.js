@@ -1,5 +1,6 @@
 import { CATEGORIES, CAT_ORDER, PALETTE, AV, DEFAULT_AVATAR, SEASONS, STYLES, WARMTH, FORMALITY, isNeutral, safeColor } from './catalog.js';
 import { faceSVG, garmentSVG, esc } from './draw.js';
+import { flatlaySVG } from './flatlay.js';
 import { demo, online, isDemo, today } from './store.js';
 import { createSync } from './sync.js';
 import { compressImage } from './image.js';
@@ -262,7 +263,7 @@ const SLOTS = [['haut', 'Haut'], ['veste', 'Veste'], ['bas', 'Bas'], ['chaussure
 const OPTIONAL = new Set(['veste', 'accessoire']);
 function slotBtn(cat, label) {
   const it = item(S.sel[cat]);
-  const vis = it ? (it.front_url ? `<img src="${esc(it.front_url)}" alt="" data-photo-img>` : `<span class="slot-dot" style="background:${col(it.color_hex)}"></span>`) : ico(OPTIONAL.has(cat) ? 'plus' : cat, 20, 1.8);
+  const vis = it ? (it.front_url ? `<img src="${esc(it.front_url)}" alt="" data-photo-img>` : flatlaySVG(it)) : ico(OPTIONAL.has(cat) ? 'plus' : cat, 20, 1.8);
   const name = it ? esc(it.name) : OPTIONAL.has(cat) ? 'Ajouter' : 'Aucun';
   return `<button class="slot ${it ? 'on' : ''}" data-act="openPick" data-cat="${cat}" aria-label="${label} : ${it ? esc(it.name) : 'aucun'}. Changer">
     <span class="slot-vis">${vis}</span><span class="slot-k">${label}</span><span class="slot-n">${name}</span></button>`;
@@ -272,15 +273,15 @@ function slotBtn(cat, label) {
 // Positions en % de la zone : haut en haut à gauche, veste qui chevauche à droite,
 // bas en dessous, accessoire et chaussures sur la droite. Sans veste, l'accessoire remonte.
 const LOOK = {
-  withJacket: { veste: [47, 4, 49, 42, 0], haut: [5, 6, 46, 33, 0], bas: [9, 40, 44, 56, 0], accessoire: [60, 49, 28, 20, 6], chaussures: [54, 73, 42, 22, -6] },
-  noJacket: { haut: [8, 4, 52, 37, 0], accessoire: [62, 12, 30, 24, 6], bas: [12, 43, 44, 54, 0], chaussures: [56, 68, 40, 24, -6] }
+  withJacket: { haut: [4, 4, 44, 36, 0], veste: [46, 3, 50, 50, 0], bas: [10, 38, 36, 59, 0], accessoire: [60, 54, 24, 18, 8], chaussures: [50, 74, 46, 22, 0] },
+  noJacket: { haut: [6, 4, 50, 40, 0], accessoire: [62, 10, 28, 24, 8], bas: [14, 40, 38, 57, 0], chaussures: [52, 64, 44, 26, 0] }
 };
 const LOOK_LABEL = { haut: 'Haut', veste: 'Veste', bas: 'Bas', chaussures: 'Chaussures', accessoire: 'Accessoire' };
 function lookBoard() {
   const L = S.sel.veste && item(S.sel.veste) ? LOOK.withJacket : LOOK.noJacket;
   const pieces = Object.entries(L).map(([cat, [x, y, w, h, rot]]) => {
     const it = item(S.sel[cat]); if (!it) return '';
-    const vis = it.front_url ? `<img src="${esc(it.front_url)}" alt="" data-photo-img draggable="false">` : garmentSVG(it, 'front');
+    const vis = it.front_url ? `<img src="${esc(it.front_url)}" alt="" data-photo-img draggable="false">` : flatlaySVG(it);
     return `<button class="look-piece ${it.front_url ? 'photo' : ''}" data-act="openPick" data-swipe="${cat}" data-cat="${cat}" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%;--rot:${rot}deg"
       aria-label="${LOOK_LABEL[cat]} : ${esc(it.name)}. Toucher pour changer, glisser pour passer à la suivante">${vis}</button>`;
   }).join('');
@@ -332,7 +333,7 @@ function viewPick() {
 /* ---------------- garde-robe ---------------- */
 function viewWardrobe() {
   const total = S.items.length, favs = S.items.filter((i) => i.favorite).length;
-  const thumb = (it) => (it.front_url ? `<img src="${esc(it.front_url)}" alt="" loading="lazy" data-photo-img>` : `<span>${garmentSVG(it, 'front')}</span>`);
+  const thumb = (it) => (it.front_url ? `<img src="${esc(it.front_url)}" alt="" loading="lazy" data-photo-img>` : `<span>${flatlaySVG(it)}</span>`);
   return `${demoBanner()}<main class="screen">
     <header class="cat-head"><div class="t"><span class="kicker">Ma collection</span><h1 class="h-font">Garde-robe</h1><span class="sub">${total} pièce${total > 1 ? 's' : ''}${favs ? ` · ${favs} favori${favs > 1 ? 's' : ''}` : ''}</span></div></header>
     <div class="cats">${CAT_ORDER.map((cat) => {
@@ -385,7 +386,7 @@ function filtered(cat) {
 }
 function tileVisual(it, side = 'front') {
   const url = side === 'front' ? it.front_url : it.back_url;
-  return url ? `<img src="${esc(url)}" alt="" loading="lazy" data-photo-img>` : garmentSVG(it, side);
+  return url ? `<img src="${esc(url)}" alt="" loading="lazy" data-photo-img>` : side === 'front' ? flatlaySVG(it) : garmentSVG(it, side);
 }
 
 function viewCat(cat) {

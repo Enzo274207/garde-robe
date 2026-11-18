@@ -164,7 +164,7 @@ h1.h-font { margin: 0; font-size: clamp(30px, 9vw, 38px); line-height: .92; lett
 .look-piece:active { transform: rotate(var(--rot, 0deg)) scale(.97); }
 .look-piece.photo { mix-blend-mode: multiply; }   /* sur la pièce elle-même : la rotation crée un contexte isolé */
 .look-piece img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
-.look-piece svg { width: 100%; height: 100%; filter: drop-shadow(0 6px 8px rgba(0,0,0,.12)); --outline: rgba(13,13,13,.45); }
+.look-piece svg { width: 100%; height: 100%; overflow: visible; }
 .look-piece:focus-visible { outline: 2px solid #0D0D0D; outline-offset: 3px; }
 .look-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 30px; text-align: center; color: #5C5A55; font-size: 14px; }
 
@@ -176,6 +176,7 @@ h1.h-font { margin: 0; font-size: clamp(30px, 9vw, 38px); line-height: .92; lett
 .slot.on { border-color: var(--fg); }
 .slot-vis { width: 40px; height: 40px; border-radius: var(--r-sm); background: var(--tile); color: var(--muted); display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .slot-vis img { width: 100%; height: 100%; object-fit: cover; }
+.slot-vis svg { width: 88%; height: 88%; }
 .slot-dot { width: 24px; height: 24px; border-radius: 12px; border: 1px solid var(--line2); }
 .slot-k { font-size: 11px; font-weight: 600; color: var(--muted); }
 .slot-n { max-width: 100%; padding: 0 2px; font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

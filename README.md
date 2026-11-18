@@ -77,7 +77,8 @@ css/app.css             styles, thèmes clair/sombre
 js/config.js            clés Supabase (vide = mode démo)
 js/app.js               écrans, navigation, actions
 js/store.js             données : Supabase ou mode démo (même interface)
-js/draw.js              dessins SVG : visage, pièces
+js/draw.js              dessins SVG : visage, verso des pièces
+js/flatlay.js           visuels « produit » des pièces sans photo (proportions réelles, textures de tissu)
 icons/icon.svg          icône de l'app
 js/catalog.js           catégories, types, couleurs, avatar, pièces d'exemple
 js/image.js             compression des photos avant envoi
