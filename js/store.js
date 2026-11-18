@@ -177,10 +177,20 @@ async function client() {
     try { mod = await import(url); break; } catch (e) { lastErr = e; }
   }
   if (!mod) throw new Error('Impossible de charger la connexion au serveur. Vérifie ta connexion internet.' + (lastErr ? '' : ''));
-  sb = mod.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
+  // fetch résolu à chaque appel (permet de détecter/simuler une coupure réseau)
+  sb = mod.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true }, global: { fetch: (...a) => fetch(...a) } });
   return sb;
 }
-function fail(error) { if (error) throw new Error(frError(error.message || String(error))); }
+const NETWORK_RE = /failed to fetch|networkerror|network request failed|load failed|fetch failed|err_internet|err_network/i;
+export const isNetworkError = (e) => !!e && (e.network === true || NETWORK_RE.test(String(e.message || e)) || (typeof navigator !== 'undefined' && navigator.onLine === false));
+function fail(error) {
+  if (!error) return;
+  const raw = error.message || String(error);
+  const e = new Error(frError(raw));
+  if (NETWORK_RE.test(raw) || error.name === 'StorageUnknownError' && NETWORK_RE.test(String(error.originalError || ''))) e.network = true;
+  if (/duplicate key|23505/.test(raw) || error.code === '23505') e.duplicate = true;
+  throw e;
+}
 function frError(msg) {
   const m = String(msg).toLowerCase();
   if (m.includes('invalid login')) return 'E-mail ou mot de passe incorrect.';
@@ -202,8 +212,14 @@ const online = {
     c.auth.onAuthStateChange((event, session) => { this._uid = session?.user?.id || null; cb(event, session?.user || null); });
   },
   async session() {
-    const c = await client(); const { data, error } = await c.auth.getSession(); fail(error);
-    this._uid = data.session?.user?.id || null; return data.session?.user || null;
+    const c = await client();
+    const { data, error } = await c.auth.getSession();
+    let user = data?.session?.user || null;
+    if (!user && error && NETWORK_RE.test(error.message || '')) {
+      // Hors connexion avec un jeton à renouveler : on garde la session enregistrée sur l'appareil.
+      try { user = JSON.parse(localStorage.getItem(`sb-${new URL(SUPABASE_URL).hostname.split('.')[0]}-auth-token`))?.user || null; } catch (e) { user = null; }
+    } else fail(error);
+    this._uid = user?.id || null; return user;
   },
   async signUp(email, password, username) {
     const c = await client();
@@ -217,17 +233,35 @@ const online = {
     const { data, error } = await c.auth.signInWithPassword({ email, password });
     fail(error); this._uid = data.user.id; return data.user;
   },
-  async signOut() { const c = await client(); const { error } = await c.auth.signOut(); this._uid = null; fail(error); },
+  async signOut() {
+    const c = await client();
+    const { error } = await c.auth.signOut();
+    if (error) { await c.auth.signOut({ scope: 'local' }).catch(() => {}); }  // hors connexion : déconnexion locale
+    this._uid = null;
+  },
+  get uid() { return this._uid; },
+  // Date de dernière modification d'une ligne (null si elle n'existe plus)
+  async meta(table, id) {
+    const c = await client();
+    const { data, error } = await c.from(table).select('id, updated_at').eq('id', id).maybeSingle();
+    fail(error); return data;
+  },
+  async wearOn(day) {
+    const c = await client();
+    const { data, error } = await c.from('wears').select('*').eq('worn_on', day).maybeSingle();
+    fail(error); return data;
+  },
   async profile() {
     const c = await client();
     const { data, error } = await c.from('profiles').select('*').eq('id', this._uid).maybeSingle();
     fail(error);
-    return { username: data?.username || '', avatar: { ...DEFAULT_AVATAR, ...(data?.avatar || {}) }, style_prefs: data?.style_prefs || {} };
+    return { username: data?.username || '', avatar: { ...DEFAULT_AVATAR, ...(data?.avatar || {}) }, style_prefs: data?.style_prefs || {}, updated_at: data?.updated_at || null };
   },
   async saveAvatar(avatar) {
     const c = await client();
-    const { data, error } = await c.from('profiles').update({ avatar }).eq('id', this._uid).select('id');
+    const { data, error } = await c.from('profiles').update({ avatar }).eq('id', this._uid).select('id, updated_at');
     fail(error); if (!data?.length) throw new Error('Profil introuvable : avatar non enregistré.');
+    return data[0];
   },
   async _sign(list) {
     const c = await client();
@@ -264,7 +298,7 @@ const online = {
   },
   async addItem(meta, front, back) {
     checkBlob(front); checkBlob(back);
-    const c = await client(); const id = uid(); const uploaded = [];
+    const c = await client(); const id = meta.id || uid(); const uploaded = [];
     try {
       const row = { ...meta, id, front_path: null, back_path: null };
       if (front) { row.front_path = await this._upload(id, 'front', front); uploaded.push(row.front_path); }
@@ -278,7 +312,7 @@ const online = {
     checkBlob(front); checkBlob(back);
     const c = await client();
     const { data: cur, error: e1 } = await c.from('items').select('front_path, back_path').eq('id', id).maybeSingle();
-    fail(e1); if (!cur) throw new Error('Cette pièce n’existe plus.');
+    fail(e1); if (!cur) { const e = new Error('Cette pièce n’existe plus.'); e.gone = true; throw e; }
     const p = { ...patch }, uploaded = [], replaced = [];
     try {
       if (front) { p.front_path = await this._upload(id, 'front', front); uploaded.push(p.front_path); if (cur.front_path) replaced.push(cur.front_path); }
@@ -337,5 +371,4 @@ const online = {
   }
 };
 
-export const store = isDemo ? demo : online;
-export { today, OUTFIT_KEYS };
+export { demo, online, today, uid, OUTFIT_KEYS, normItem };

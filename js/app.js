@@ -1,6 +1,7 @@
 import { CATEGORIES, CAT_ORDER, PALETTE, AV, DEFAULT_AVATAR, SEASONS, STYLES, WARMTH, FORMALITY, isNeutral, safeColor } from './catalog.js';
 import { figureSVG, faceSVG, garmentSVG, esc } from './draw.js';
-import { store, isDemo, today } from './store.js';
+import { demo, online, isDemo, today } from './store.js';
+import { createSync } from './sync.js';
 import { compressImage } from './image.js';
 
 /* ---------------- icônes ---------------- */
@@ -27,6 +28,8 @@ const P = {
 };
 const ico = (k, size = 22, sw = 1.7, fill = 'none') => `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${fill}" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"><path d="${P[k]}"/></svg>`;
 const col = (hex) => safeColor(hex);
+// En ligne : couche hors connexion par-dessus Supabase. Démo : stockage local direct.
+const store = isDemo ? demo : createSync(online);
 
 /* ---------------- état ---------------- */
 const S = {
@@ -37,7 +40,8 @@ const S = {
   note: 'Choisis ta tenue',
   filters: { type: 'Tous', fit: 'Toutes', color: null, sort: 0 },
   sheet: null, detail: null, toast: null, loadErr: '',
-  authMode: 'login', authErr: '', authInfo: '', busy: false, confirmDelete: null, confirmAccount: false
+  authMode: 'login', authErr: '', authInfo: '', busy: false, confirmDelete: null, confirmAccount: false, confirmSignOut: false,
+  net: { offline: false, syncing: false, pending: 0, conflicts: 0 }
 };
 const app = document.getElementById('app');
 const byCat = (c) => S.items.filter((i) => i.category === c);
@@ -72,7 +76,7 @@ function makePreview(blob) { const u = URL.createObjectURL(blob); ownUrls.add(u)
 function dropPreview(u) { if (u && ownUrls.has(u)) { URL.revokeObjectURL(u); ownUrls.delete(u); } }
 function closeSheet() {
   if (S.sheet?.form) { dropPreview(S.sheet.form.frontPreview); dropPreview(S.sheet.form.backPreview); }
-  S.sheet = null; S.confirmAccount = false;
+  S.sheet = null; S.confirmAccount = false; S.confirmSignOut = false;
 }
 
 /* ---------------- sélection courante ---------------- */
@@ -141,6 +145,20 @@ async function refreshPhotoLinks() {
   } catch (e) { /* on réessaiera au prochain passage */ }
 }
 setInterval(refreshPhotoLinks, 10 * 60 * 1000);
+// État de la synchronisation (hors connexion, envois en attente, conflits)
+store.onStatus?.((st) => {
+  const prev = S.net; S.net = st;
+  if (prev.pending + prev.conflicts !== st.pending + st.conflicts || prev.offline !== st.offline || prev.syncing !== st.syncing) render();
+});
+// Après une synchronisation : on reprend les données à jour
+store.onChange?.(() => {
+  const snap = store.snapshot?.(); if (!snap || !S.user) return;
+  S.profile = snap.profile; S.items = snap.items; S.outfits = snap.outfits; S.wears = snap.wears;
+  ensureSelection(); render();
+  if (!S.net.pending && !S.net.conflicts) toast('Modifications synchronisées');
+});
+// Message honnête quand l'action est seulement enregistrée sur l'appareil
+const done = (msg) => ((S.net.offline || S.net.pending) && !isDemo ? `${msg} sur cet appareil · envoi au retour du réseau` : msg);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshPhotoLinks(); });
 
 /* ---------------- routes ---------------- */
@@ -171,6 +189,7 @@ function render() {
   if (S.user && !S.loadErr && S.detail) html += viewDetail();
   if (S.user && S.sheet?.kind === 'import') html += viewImport();
   if (S.user && S.sheet?.kind === 'avatar') html += viewAvatar();
+  if (S.user && S.sheet?.kind === 'sync') html += viewSync();
   if (S.toast) html += `<div class="toast ${S.toast.kind === 'err' ? 'err' : ''}" role="${S.toast.kind === 'err' ? 'alert' : 'status'}">${esc(S.toast.msg)}</div>`;
   app.innerHTML = html;
   const nb = document.querySelector('.sheet-body'); if (nb) nb.scrollTop = keep;
@@ -178,7 +197,16 @@ function render() {
   document.body.style.overflow = S.sheet || S.detail ? 'hidden' : '';
 }
 
-const demoBanner = () => isDemo ? `<div class="banner"><span>Mode démo : tes données restent sur cet appareil.</span></div>` : '';
+const demoBanner = () => isDemo ? `<div class="banner"><span>Mode démo : tes données restent sur cet appareil.</span></div>` : netBanner();
+function netBanner() {
+  const n = S.net; if (!n) return '';
+  const plural = (k, w) => `${k} ${w}${k > 1 ? 's' : ''}`;
+  if (n.conflicts) return `<button class="banner warn" data-act="openSync">${plural(n.conflicts, 'modification')} à vérifier : la donnée a changé ailleurs. Choisir →</button>`;
+  if (n.syncing) return `<div class="banner" role="status">Synchronisation… (${plural(n.pending, 'modification')})</div>`;
+  if (n.offline) return `<button class="banner" data-act="openSync" role="status">Hors connexion${n.pending ? ` · ${plural(n.pending, 'modification')} en attente` : ''} — envoi automatique au retour du réseau</button>`;
+  if (n.pending) return `<button class="banner" data-act="openSync">${plural(n.pending, 'modification')} en attente d’envoi</button>`;
+  return '';
+}
 
 function viewLoadError() {
   return `<main class="auth">
@@ -284,7 +312,7 @@ function viewCat(cat) {
   }).join('');
   const colors = [...new Map(all.map((d) => [d.color_hex, d])).values()];
   const n = list.length;
-  return `<main class="screen">
+  return `${demoBanner()}<main class="screen">
     <header class="cat-head">
       <a class="icon-btn" href="#/" aria-label="Retour à ma tenue">${ico('back', 20, 2)}</a>
       <div class="t"><h1 class="h-font">${C.title}</h1><span class="sub">${n} ${n > 1 ? 'pièces' : 'pièce'}${n !== all.length ? ' sur ' + all.length : ''}</span></div>
@@ -401,9 +429,30 @@ function viewAvatar() {
       ${sw('Couleur de peau', 'skin')}${sw('Couleur des cheveux', 'hair')}${sw('Couleur des yeux', 'eye')}
       ${ch('Coiffure', 'hairStyle')}${ch('Forme des yeux', 'eyeShape')}${ch('Taille des yeux', 'eyeSize')}${ch('Barbe', 'beard')}${ch('Morphologie', 'build')}
       <button class="btn accent" data-act="saveAvatar" ${S.busy ? 'disabled' : ''}>Valider</button>
-      <button class="btn ghost" data-act="signOut" ${S.busy ? 'disabled' : ''}>Se déconnecter${S.user?.email ? ' (' + esc(S.user.email) + ')' : ''}</button>
+      <button class="btn ghost" data-act="signOut" ${S.busy ? 'disabled' : ''} style="${S.confirmSignOut ? 'color:var(--on-accent);background:var(--danger)' : ''}">${S.confirmSignOut ? 'Se déconnecter quand même' : 'Se déconnecter' + (S.user?.email ? ' (' + esc(S.user.email) + ')' : '')}</button>
+      ${S.confirmSignOut ? `<div class="hint" style="color:var(--danger)">${S.net.pending + S.net.conflicts} modification(s) pas encore envoyée(s) seront perdues.</div>` : ''}
       <button class="btn ghost" data-act="deleteAccount" style="color:${S.confirmAccount ? 'var(--on-accent)' : 'var(--danger)'};background:${S.confirmAccount ? 'var(--danger)' : ''}" ${S.busy ? 'disabled' : ''}>${S.confirmAccount ? 'Confirmer : tout supprimer définitivement' : isDemo ? 'Réinitialiser la démo' : 'Supprimer mon compte et mes données'}</button>
       ${S.confirmAccount ? `<div class="hint" style="color:var(--danger)">${isDemo ? 'Toutes les données de démo seront effacées.' : 'Tes pièces, photos, tenues et ton historique seront supprimés. Impossible d’annuler.'}</div>` : ''}
+    </div>
+  </div></div>`;
+}
+
+function viewSync() {
+  const conflicts = store.conflicts?.() || [], pending = store.pendingList?.() || [];
+  return `<div class="overlay" data-act="closeSheetBg"><div class="sheet" role="dialog" aria-modal="true" aria-label="Synchronisation">
+    <span class="grab"></span>
+    <div class="sheet-head"><h2 class="h-font">Synchronisation</h2><button class="icon-btn" data-act="closeSheet" aria-label="Fermer">${ico('close', 18, 2)}</button></div>
+    <div class="sheet-body">
+      <p class="note" style="margin:0">${S.net.offline ? 'Tu es hors connexion. Tes modifications sont gardées sur cet appareil et partiront automatiquement quand le réseau reviendra, app ouverte (iOS ne permet pas l’envoi en arrière-plan).' : 'Connexion rétablie.'}</p>
+      ${conflicts.length ? `<h3 class="label" style="margin:4px 0 0;text-transform:uppercase;letter-spacing:.08em">À vérifier</h3>
+      ${conflicts.map((c) => `<div class="hist"><div style="font-weight:600;font-size:14px">${esc(c.label)}</div><div class="note">${esc(c.reason)}</div>
+        <div class="sync-actions">${c.failed
+          ? `<button class="btn ghost" data-act="resolve" data-seq="${c.seq}" data-v="mine" ${S.net.offline || S.busy ? 'disabled' : ''}>Réessayer</button><button class="btn ghost" data-act="resolve" data-seq="${c.seq}" data-v="theirs" style="color:var(--danger)" ${S.busy ? 'disabled' : ''}>Abandonner</button>`
+          : `<button class="btn ghost" data-act="resolve" data-seq="${c.seq}" data-v="theirs" ${S.net.offline || S.busy ? 'disabled' : ''}>Garder l’autre version</button><button class="btn accent" data-act="resolve" data-seq="${c.seq}" data-v="mine" ${S.net.offline || S.busy ? 'disabled' : ''}>Imposer la mienne</button>`}</div></div>`).join('')}` : ''}
+      ${pending.length ? `<h3 class="label" style="margin:4px 0 0;text-transform:uppercase;letter-spacing:.08em">En attente d’envoi</h3>
+      <div class="list" style="padding:0">${pending.map((p) => `<div class="mini" style="padding:8px 12px">${esc(p.label)}</div>`).join('')}</div>
+      ${!S.net.offline ? `<button class="btn accent" data-act="syncNow" ${S.busy || S.net.syncing ? 'disabled' : ''}>Envoyer maintenant</button>` : ''}` : ''}
+      ${!conflicts.length && !pending.length ? '<p class="note">Tout est à jour.</p>' : ''}
     </div>
   </div></div>`;
 }
@@ -414,7 +463,7 @@ function minis(ids) {
 const outfitIds = (o) => [o.top_id, o.jacket_id, o.bottom_id, o.shoes_id, o.accessory_id];
 function viewHistory() {
   const outfits = S.outfits.slice().sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0));
-  return `<main class="screen">
+  return `${demoBanner()}<main class="screen">
     <header class="cat-head">
       <a class="icon-btn" href="#/" aria-label="Retour à ma tenue">${ico('back', 20, 2)}</a>
       <div class="t"><h1 class="h-font">Historique</h1><span class="sub">${S.wears.length} jour${S.wears.length > 1 ? 's' : ''} noté${S.wears.length > 1 ? 's' : ''} · ${S.outfits.length} tenue${S.outfits.length > 1 ? 's' : ''}</span></div>
@@ -473,7 +522,7 @@ const actions = {
     if (!S.sel.haut || !S.sel.bas) return toast('Il faut au moins un haut et un bas', 'err');
     const parts = [item(S.sel.haut), item(S.sel.bas)].map((i) => i.name.split(' ')[0]);
     const ok = await guarded(async () => { const o = await store.saveOutfit({ name: parts.join(' + '), ...currentOutfit() }); S.outfits.unshift(o); });
-    if (ok) toast('Tenue enregistrée');
+    if (ok) toast(done('Tenue enregistrée'));
   },
   async wear() {
     const ok = await guarded(async () => {
@@ -481,16 +530,25 @@ const actions = {
       S.wears = [w, ...S.wears.filter((x) => x.worn_on !== w.worn_on)];
       S.items = await store.items();   // nombre de ports mis à jour côté serveur
     });
-    if (ok) toast('Noté dans ton historique');
+    if (ok) toast(done('Noté dans ton historique'));
+  },
+  openSync() { S.sheet = { kind: 'sync' }; render(); },
+  async syncNow() { await guarded(async () => { await store.flush?.(); }); },
+  async resolve(el) {
+    const ok = await guarded(async () => { await store.resolve(Number(el.dataset.seq), el.dataset.v); });
+    if (ok) { const snap = store.snapshot?.(); if (snap) { S.profile = snap.profile; S.items = snap.items; S.outfits = snap.outfits; S.wears = snap.wears; ensureSelection(); } if (!(store.conflicts?.() || []).length && !(store.pendingList?.() || []).length) closeSheet(); render(); }
   },
   openAvatar() { S.sheet = { kind: 'avatar', draft: { ...S.profile.avatar } }; S.confirmAccount = false; render(); },
   av(el) { S.sheet.draft[el.dataset.k] = el.dataset.num ? Number(el.dataset.v) : el.dataset.v; render(); },
   async saveAvatar() {
     const draft = S.sheet.draft;
     const ok = await guarded(async () => { await store.saveAvatar(draft); S.profile.avatar = draft; closeSheet(); });
-    if (ok) toast('Avatar mis à jour');
+    if (ok) toast(done('Avatar mis à jour'));
   },
   async signOut() {
+    const unsent = (S.net.pending || 0) + (S.net.conflicts || 0);
+    if (unsent && !S.confirmSignOut) { S.confirmSignOut = true; render(); return; }
+    S.confirmSignOut = false;
     S.expectSignOut = true;
     const ok = await guarded(async () => { await store.signOut(); });
     S.expectSignOut = false;
@@ -552,7 +610,7 @@ const actions = {
     const ok = await guarded(async () => {
       if (editId) {
         saved = await store.updateItem(editId, meta, f.front, f.back);
-        S.items = S.items.map((x) => (x.id === editId ? saved : x));
+        S.items = S.items.map((x) => (x.id === editId ? (saved?.id ? saved : { ...x, ...meta }) : x));
       } else {
         saved = await store.addItem(meta, f.front, f.back);
         S.items.unshift(saved);
@@ -560,7 +618,7 @@ const actions = {
       }
       closeSheet(); ensureSelection();
     }, 'sheet');
-    if (ok) toast(editId ? 'Pièce modifiée' : `« ${name} » ajouté`);
+    if (ok) toast(done(editId ? 'Pièce modifiée' : `« ${name} » ajouté`));
   },
   open(el) { S.detail = { id: el.dataset.id, back: false }; S.confirmDelete = null; render(); },
   closeDetail() { S.detail = null; S.confirmDelete = null; render(); },
@@ -574,9 +632,9 @@ const actions = {
     const it = item(el.dataset.id); if (!it) return;
     const ok = await guarded(async () => {
       const saved = await store.updateItem(it.id, { favorite: !it.favorite });
-      S.items = S.items.map((x) => (x.id === it.id ? saved : x));
+      S.items = S.items.map((x) => (x.id === it.id ? (saved?.id ? saved : { ...x, favorite: !it.favorite }) : x));
     });
-    if (ok) toast(item(it.id)?.favorite ? 'Ajoutée aux favoris' : 'Retirée des favoris');
+    if (ok) toast(done(item(it.id)?.favorite ? 'Ajoutée aux favoris' : 'Retirée des favoris'));
   },
   tryOn(el) {
     const it = item(el.dataset.id); if (!it) return;
@@ -596,7 +654,7 @@ const actions = {
       S.outfits.forEach(strip); S.wears.forEach(strip);
       S.detail = null; S.confirmDelete = null; ensureSelection();
     });
-    if (ok) toast(res.warning || `« ${name} » supprimé`, res.warning ? 'err' : 'ok');
+    if (ok) toast(res.warning || done(`« ${name} » supprimé`), res.warning ? 'err' : 'ok');
   },
   fType(el) { S.filters.type = el.dataset.v; render(); },
   fFit(el) { S.filters.fit = el.dataset.v; render(); },
@@ -614,18 +672,18 @@ const actions = {
   },
   async favOutfit(el) {
     const o = S.outfits.find((x) => x.id === el.dataset.id); if (!o) return;
-    await guarded(async () => { const n = await store.updateOutfit(o.id, { favorite: !o.favorite }); S.outfits = S.outfits.map((x) => (x.id === o.id ? n : x)); });
+    await guarded(async () => { const n = await store.updateOutfit(o.id, { favorite: !o.favorite }); S.outfits = S.outfits.map((x) => (x.id === o.id ? (n?.id ? n : { ...x, favorite: !o.favorite }) : x)); });
   },
   async delOutfit(el) {
     const id = el.dataset.id;
     if (S.confirmDelete !== id) { S.confirmDelete = id; render(); return; }
     const ok = await guarded(async () => { await store.deleteOutfit(id); S.outfits = S.outfits.filter((x) => x.id !== id); S.confirmDelete = null; });
-    if (ok) toast('Tenue supprimée');
+    if (ok) toast(done('Tenue supprimée'));
   },
   async delWear(el) {
     const id = el.dataset.id;
     const ok = await guarded(async () => { await store.deleteWear(id); S.wears = S.wears.filter((x) => x.id !== id); S.items = await store.items(); });
-    if (ok) toast('Retiré de l’historique');
+    if (ok) toast(done('Retiré de l’historique'));
   }
 };
 
@@ -680,7 +738,7 @@ addEventListener('keydown', (ev) => {
   if (S.sheet) { closeSheet(); render(); } else if (S.detail) { S.detail = null; render(); }
 });
 
-if ('serviceWorker' in navigator && location.protocol === 'https:') {
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 }
 boot();

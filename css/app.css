@@ -191,3 +191,8 @@ button { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+/* --- étape 3 : synchronisation --- */
+button.banner { border: none; width: calc(100% - 24px); text-align: left; cursor: pointer; font: inherit; font-size: 12px; min-height: 36px; }
+.banner.warn { background: var(--danger); color: #fff; }
+.sync-actions { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 8px; }
+.sync-actions .btn { height: 44px; font-size: 13px; padding: 0 8px; }

@@ -55,8 +55,17 @@ L'app s'ouvre ensuite en plein écran comme une app normale.
 |---|---|---|
 | `supabase/migrations/001_securite.sql` | Vérifie les couleurs et longueurs, interdit d'utiliser la pièce d'un autre utilisateur dans une tenue, limite les photos (5 Mo, JPEG/PNG/WebP), ajoute la suppression de compte | `001_securite_down.sql` |
 | `supabase/migrations/002_fiches.sql` | Catégorie Vestes, détails facultatifs (saisons, style, chaleur, formalité, matière, marque, taille, couleurs secondaires), favoris, nombre de ports | `002_fiches_down.sql` |
+| `supabase/migrations/003_synchro.sql` | Date de modification sur le profil et l’historique (détection des conflits hors connexion) ; le compteur de ports ne compte plus comme une modification | `003_synchro_down.sql` |
 
 `supabase/schema.sql` reste le schéma de départ pour un projet neuf (puis appliquer les migrations).
+
+## Hors connexion
+
+- L’app s’ouvre sans réseau (service worker) avec la dernière copie de tes données et photos déjà vues.
+- Ajouts, modifications, suppressions, tenues et historique sont gardés sur l’appareil (IndexedDB) et envoyés dans l’ordre au retour du réseau.
+- Avant chaque envoi, l’app vérifie que la donnée n’a pas changé ailleurs entre-temps. Si oui, rien n’est écrasé : un bandeau propose « Garder l’autre version » ou « Imposer la mienne ».
+- Limite iOS : l’envoi se fait seulement quand l’app est ouverte (pas de synchronisation en arrière-plan sur iPhone).
+- Suppression du compte : nécessite d’être en ligne. Se déconnecter avec des modifications non envoyées demande confirmation.
 
 ## Structure
 
