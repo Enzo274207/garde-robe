@@ -27,8 +27,8 @@ export const CATEGORIES = {
   },
   accessoire: {
     key: 'accessoire', title: 'Accessoires', one: 'un accessoire', empty: 'Aucun accessoire ne correspond',
-    types: ['Montre', 'Bague', 'Chaîne', 'Bracelet'],
-    plural: { Montre: 'Montres', Bague: 'Bagues', 'Chaîne': 'Chaînes', Bracelet: 'Bracelets' },
+    types: ['Casquette', 'Bonnet', 'Sac', 'Ceinture', 'Lunettes', 'Écharpe', 'Montre', 'Bague', 'Chaîne', 'Bracelet'],
+    plural: { Casquette: 'Casquettes', Bonnet: 'Bonnets', Sac: 'Sacs', Ceinture: 'Ceintures', Lunettes: 'Lunettes', 'Écharpe': 'Écharpes', Montre: 'Montres', Bague: 'Bagues', 'Chaîne': 'Chaînes', Bracelet: 'Bracelets' },
     fits: [], fitWord: ''
   }
 };

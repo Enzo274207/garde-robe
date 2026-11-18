@@ -195,7 +195,7 @@ export async function cutout(blob, max = MAX_SIDE, sens = 1) {
   if (!res) return { ok: false, reason: 'Export de l’image impossible.' };
   if (res.size > MAX_BYTES && max > 700) return cutout(blob, Math.round(max * 0.75), sens);
   const rgb = sn ? [sr / sn, sg / sn, sb / sn].map(Math.round) : null;   // couleur moyenne du vêtement
-  return { ok: true, blob: res, coverage, rgb };
+  return { ok: true, blob: res, coverage, rgb, bg };
 }
 
 // Une photo détourée est enregistrée en PNG ou WebP (transparence) ; une photo d'origine en JPEG.

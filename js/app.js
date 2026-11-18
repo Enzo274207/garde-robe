@@ -833,8 +833,8 @@ app.addEventListener('change', async (ev) => {
   if (!side || !ev.target.files?.[0] || !S.sheet?.form) return;
   await applyPhoto(side, ev.target.files[0], false);
 });
-async function genFrom(cutBlob, f) {
-  try { const r = await regenerate(cutBlob, { category: f.category, type: f.type, fit: f.fit, name: f.name }); return r.ok ? r.blob : null; } catch (e) { return null; }
+async function genFrom(cutBlob, f, bg) {
+  try { const r = await regenerate(cutBlob, { category: f.category, type: f.type, fit: f.fit, name: f.name }, bg); if (r.ok) f.genColor = r.color; return r.ok ? r.blob : null; } catch (e) { return null; }
 }
 // Le gabarit dépend de la catégorie, du type et de la coupe : on redessine si l'un d'eux change.
 let regenTimer;
@@ -844,7 +844,7 @@ function refreshGen() {
     const f = S.sheet?.form; if (!f) return;
     for (const side of ['front', 'back']) {
       if (!f[side + 'Cut']) continue;
-      const gen = await genFrom(f[side + 'Cut'], f);
+      const gen = await genFrom(f[side + 'Cut'], f, f[side + 'Bg']);
       if (S.sheet?.form !== f || !gen) continue;
       f[side + 'Gen'] = gen;
       if (f[side + 'Use'] === 'gen') { dropPreview(f[side + 'Preview']); f[side] = gen; f[side + 'Preview'] = makePreview(gen); }
@@ -863,7 +863,7 @@ async function applyPhoto(side, file, keepRawPreview) {
     try { cut = await cutout(file); } catch (e) { cut = { ok: false, reason: 'Détourage impossible sur cette image.' }; }
     // pièce recréée : analysée (couleur, logos) puis redessinée en pose produit
     let gen = null;
-    if (cut.ok) gen = await genFrom(cut.blob, f);
+    if (cut.ok) { f[side + 'Bg'] = cut.bg; gen = await genFrom(cut.blob, f, cut.bg); }
     if (S.sheet?.form !== f) return;   // panneau fermé entre-temps
     dropPreview(f[side + 'Preview']);
     f[side + 'Raw'] = raw; f[side + 'Cut'] = cut.ok ? cut.blob : null; f[side + 'Gen'] = gen;
@@ -871,9 +871,10 @@ async function applyPhoto(side, file, keepRawPreview) {
     f[side] = gen || (cut.ok ? cut.blob : raw); f[side + 'Preview'] = makePreview(f[side]);
     f[side + 'Msg'] = cut.ok ? '' : cut.reason;
     // couleur proposée d'après le vêtement détouré (tant qu'elle n'a pas été choisie à la main)
-    if (cut.ok && cut.rgb && side === 'front' && !f.colorTouched && !S.sheet.editId) {
+    const rgb = f.genColor ? [1, 3, 5].map((i) => parseInt(f.genColor.slice(i, i + 2), 16)) : cut.rgb;
+    if (cut.ok && rgb && side === 'front' && !f.colorTouched && !S.sheet.editId) {
       const d = (h) => { // écart de luminosité + écart de teinte (la teinte compte davantage)
-        const c = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)), dr = c[0] - cut.rgb[0], dg = c[1] - cut.rgb[1], db = c[2] - cut.rgb[2];
+        const c = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)), dr = c[0] - rgb[0], dg = c[1] - rgb[1], db = c[2] - rgb[2];
         const dl = dr * 0.3 + dg * 0.59 + db * 0.11; return 0.4 * dl * dl + 4 * ((dr - dl) ** 2 + (dg - dl) ** 2 + (db - dl) ** 2);
       };
       const best = PALETTE.reduce((a, b) => (d(b.hex) < d(a.hex) ? b : a));

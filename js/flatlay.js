@@ -15,7 +15,8 @@ const MATERIAL = {
   'T-shirt': 'jersey', Pull: 'knit', Sweat: 'fleece', Chemise: 'poplin', Veste: 'wool',
   Jean: 'denim', Pantalon: 'twill', Chino: 'twill', Jogging: 'fleece', Cargo: 'canvas',
   Blouson: 'leather', Manteau: 'wool', Doudoune: 'puffer', 'Coupe-vent': 'nylon',
-  Baskets: 'leather', Running: 'mesh', Ville: 'leather', Bottines: 'suede'
+  Baskets: 'leather', Running: 'mesh', Ville: 'leather', Bottines: 'suede',
+  Casquette: 'twill', Bonnet: 'knit', Sac: 'leather', Ceinture: 'leather', Lunettes: 'leather', 'Écharpe': 'knit'
 };
 
 /* ---------- textures (motifs et bruit) ---------- */
@@ -125,7 +126,7 @@ function jacket(it, id, hex, mat, decor = '') {
 }
 
 /* ---------- bas (cadre 120 × 270) ---------- */
-function bottom(it, id, hex, mat) {
+function bottom(it, id, hex, mat, decor = '') {
   const t = it.type, fit = it.fit || 'Regular';
   const hem = { 'Ajusté': 16, Regular: 21, Ample: 29 }[fit] || 21, thigh = { 'Ajusté': 2, Regular: 4, Ample: 9 }[fit] || 4;
   const jog = t === 'Jogging', bot = 262, cuffW = jog ? Math.min(hem, 15) : hem;
@@ -156,7 +157,7 @@ function bottom(it, id, hex, mat) {
     out += `<path d="M${lx - 1} 120 L${lx + 22} 118 L${lx + 22} 156 L${lx + 1} 158 Z M${rx + 1} 120 L${rx - 22} 118 L${rx - 22} 156 L${rx - 1} 158 Z" fill="${shade(hex, 1.05)}" stroke="${dk}" stroke-width=".9"/>`;
     out += `<path d="M${lx - 1} 120 L${lx + 22} 118 L${lx + 22} 128 L${lx} 130 Z M${rx + 1} 120 L${rx - 22} 118 L${rx - 22} 128 L${rx} 130 Z" fill="${dk}" opacity=".35"/>`;
   }
-  return cloth(id, d, hex, mat, out);
+  return cloth(id, d, hex, mat, out, decor);
 }
 
 /* ---------- chaussures : la paire vue de profil (cadre 240 × 120) ---------- */
@@ -166,11 +167,11 @@ function shoePath(type, high) {
   if (high) return 'M8 94 C6 66 7 36 10 20 C11 14 16 12 22 12 L48 12 C54 12 57 16 58 22 L62 56 C74 62 90 64 106 67 C126 71 140 77 146 85 C150 89 150 94 146 96 L10 96 Z';
   return 'M8 92 C6 70 8 52 14 44 C18 38 26 36 34 38 L46 42 C52 44 56 48 60 54 C70 60 86 62 104 66 C124 70 140 76 146 84 C150 88 150 94 146 96 L10 96 Z';
 }
-function shoes(it, id, hex) {
+function shoes(it, id, hex, decor = '') {
   const t = it.type, high = it.fit === 'Montantes', mat = MATERIAL[t] || 'leather';
-  const sole = t === 'Ville' ? '#3E2A1E' : t === 'Bottines' ? '#2A2A2A' : isDark(hex) ? '#F2F1EC' : '#E6E2D8';
+  const sole = it.sole_hex ? safeColor(it.sole_hex) : t === 'Ville' ? '#3E2A1E' : t === 'Bottines' ? '#2A2A2A' : isDark(hex) ? '#F2F1EC' : '#E6E2D8';
   const soleH = t === 'Running' ? 16 : t === 'Ville' ? 6 : 10;
-  const one = (dx, dy, k, cid) => {
+  const one = (dx, dy, k, cid, dec = '') => {
     const d = shoePath(t, high), dk = shade(hex, 0.68);
     const collar = t === 'Ville' ? 'M16 60 C26 56 40 57 52 60' : t === 'Bottines' || high ? 'M12 14 C22 11 40 11 54 15' : 'M15 44 C24 39 40 41 55 50';
     let ex = fold(cid, 'M20 70 Q60 70 120 82') + line(collar, shade(hex, 0.45), 3.4, 0.9) + `<path d="M118 70 C132 74 142 80 146 88" fill="none" stroke="#fff" stroke-opacity="${mat === 'leather' ? 0.22 : 0.1}" stroke-width="4" filter="url(#b${cid})"/>`;
@@ -183,17 +184,55 @@ function shoes(it, id, hex) {
     if (t === 'Bottines' || high) ex += stitch('M10 22 L54 22', shade(hex, 1.35), 0.9);
     const sy = 96 - soleH;   // semelle galbée, bout légèrement relevé
     const soleD = `M6 ${sy} L140 ${sy} C148 ${sy - 1} 153 ${sy + 2} 152 ${sy + soleH * 0.5} C151 ${sy + soleH} 146 ${96 + 6} 138 ${96 + 6} L12 ${96 + 6} C7 ${96 + 6} 4 ${96 + 3} 4 ${sy + 4} Z`;
-    return `<g transform="translate(${dx} ${dy}) scale(${k})">${cloth(cid, d, hex, mat, ex)}<path d="${soleD}" fill="${sole}" stroke="rgba(0,0,0,.18)" stroke-width=".8"/>
+    return `<g transform="translate(${dx} ${dy}) scale(${k})">${cloth(cid, d, hex, mat, ex, dec)}<path d="${soleD}" fill="${sole}" stroke="rgba(0,0,0,.18)" stroke-width=".8"/>
       ${t === 'Running' ? `<path d="M10 ${sy + 6} Q80 ${sy + 1} 148 ${sy + 6}" stroke="${shade(hex, 0.7)}" stroke-width="2" fill="none"/>` : ''}</g>`;
   };
   const id2 = ++uid;
-  return wrap('0 0 232 136', defs(id, mat, hex) + defs(id2, mat, hex) + one(72, 0, 1, id2) + one(2, 26, 1.04, id), `Chaussures : ${it.name || t}`);
+  return wrap('0 0 232 136', defs(id, mat, hex) + defs(id2, mat, hex) + one(72, 0, 1, id2, decor) + one(2, 26, 1.04, id, decor), `Chaussures : ${it.name || t}`);
 }
 
 /* ---------- accessoires (cadre 120 × 120) ---------- */
-function accessory(it, id, hex) {
-  const t = it.type, metal = lum(hex) > 0.6 ? '#D9D6CF' : hex;
+// Accessoires en tissu / cuir : forme + matière + logo éventuel (zone ACC_BOX)
+const ACC_BOX = { Casquette: { x0: 38, x1: 82, y0: 30, y1: 62 }, Bonnet: { x0: 40, x1: 80, y0: 74, y1: 96 }, Sac: { x0: 32, x1: 88, y0: 56, y1: 104 }, 'Écharpe': { x0: 36, x1: 84, y0: 70, y1: 106 } };
+function accessory(it, id, hex, decor = '') {
+  // métal : la couleur détectée (or, argent, acier…) ; un gris très clair et neutre devient un argent lisible
+  const [mr, mg, mb] = hexToRgb(hex), neutral = Math.max(mr, mg, mb) - Math.min(mr, mg, mb) < 18;
+  const t = it.type, metal = neutral && lum(hex) > 0.6 ? '#D9D6CF' : hex, mat = MATERIAL[t] || 'leather', dk = shade(hex, 0.68), st = shade(hex, lum(hex) > 0.5 ? 0.7 : 1.45);
   const gloss = `<linearGradient id="m${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".7"/><stop offset=".45" stop-color="${metal}"/><stop offset="1" stop-color="${shade(metal, 0.55)}"/></linearGradient>`;
+  const D = (inner) => wrap('0 0 120 120', defs(id, mat, hex).replace('</defs>', gloss + '</defs>') + inner, `Accessoire : ${String(it.name || t).replace(/[<>&"]/g, '')}`);
+  if (t === 'Casquette') {
+    const crown = 'M18 72 Q16 22 60 16 Q104 22 102 72 Z';
+    return D(cloth(id, crown, hex, mat, stitch('M60 18 Q44 40 40 70', st) + stitch('M60 18 Q76 40 80 70', st) + fold(id, 'M30 40 Q34 60 30 70') + fold(id, 'M90 40 Q86 60 90 70', true), decor)
+      + `<circle cx="60" cy="17" r="3.4" fill="${dk}"/><path d="M20 68 Q60 62 100 68 Q106 84 60 96 Q14 84 20 68 Z" fill="${shade(hex, 0.82)}" filter="url(#s${id})"/>`
+      + `<path d="M24 70 Q60 64 96 70" fill="none" stroke="${shade(hex, 0.6)}" stroke-width="2.2"/>` + stitch('M28 76 Q60 71 92 76', st) + stitch('M32 82 Q60 78 88 82', st));
+  }
+  if (t === 'Bonnet') {
+    const dome = 'M22 80 Q20 20 60 16 Q100 20 98 80 Z', cuff = 'M18 72 L102 72 L104 102 Q60 108 16 102 Z';
+    let ribs = ''; for (let x = 20; x < 104; x += 4) ribs += `<path d="M${x} 72 V106" stroke="${dk}" stroke-width="1.4" opacity=".45"/>`;
+    const cid = ++uid;   // revers : sa propre zone de découpe, mêmes filtres que le bonnet
+    return D(cloth(id, dome, hex, mat, fold(id, 'M40 30 Q36 54 40 74') + fold(id, 'M80 30 Q84 54 80 74', true))
+      + `<clipPath id="c${cid}"><path d="${cuff}"/></clipPath><g filter="url(#s${id})"><path d="${cuff}" fill="${shade(hex, 0.92)}"/></g>`
+      + `<g clip-path="url(#c${cid})">${ribs}<rect width="100%" height="100%" filter="url(#n${id})"/>${decor}<rect width="100%" height="100%" fill="url(#gy${id})"/><rect width="100%" height="100%" fill="url(#gx${id})"/></g>`);
+  }
+  if (t === 'Sac') {
+    const body = 'M20 46 L100 46 L106 112 Q60 116 14 112 Z';
+    return D(`<path d="M38 48 Q38 10 60 10 Q82 10 82 48" fill="none" stroke="${dk}" stroke-width="6" stroke-linecap="round" filter="url(#s${id})"/>`
+      + cloth(id, body, hex, mat, stitch('M24 52 L96 52', st) + stitch('M22 106 Q60 110 98 106', st) + fold(id, 'M34 60 Q38 86 32 108') + fold(id, 'M86 60 Q82 86 88 108', true), decor)
+      + `<rect x="34" y="42" width="8" height="10" rx="2" fill="url(#m${id})"/><rect x="78" y="42" width="8" height="10" rx="2" fill="url(#m${id})"/>`);
+  }
+  if (t === 'Ceinture') {
+    let coil = ''; [44, 34, 24].forEach((r, i) => { coil += `<ellipse cx="60" cy="64" rx="${r + 8}" ry="${r}" fill="none" stroke="${shade(hex, 1 - i * 0.08)}" stroke-width="9" filter="url(#s${id})"/>`; });
+    return D(coil + stitch('M18 64 Q18 26 60 24 Q102 26 102 64', st) + `<rect x="80" y="54" width="26" height="22" rx="4" fill="none" stroke="url(#m${id})" stroke-width="4.5"/><path d="M82 65 H100" stroke="url(#m${id})" stroke-width="3"/>`);
+  }
+  if (t === 'Lunettes') {
+    const lens = (x) => `<rect x="${x}" y="44" width="40" height="30" rx="13" fill="#1E2328" opacity=".82"/><rect x="${x}" y="44" width="40" height="30" rx="13" fill="none" stroke="${hex}" stroke-width="5"/><path d="M${x + 8} 52 Q${x + 18} 47 ${x + 28} 50" stroke="#fff" stroke-opacity=".35" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+    return D(`<g filter="url(#s${id})">${lens(12)}${lens(68)}<path d="M52 56 Q60 50 68 56" fill="none" stroke="${hex}" stroke-width="4.5"/><path d="M12 52 L2 48 M108 52 L118 48" stroke="${dk}" stroke-width="4" stroke-linecap="round"/></g>`);
+  }
+  if (t === 'Écharpe') {
+    const sc = 'M30 8 L90 8 L92 74 L84 108 L36 108 L28 74 Z';
+    let fr = ''; for (let x = 38; x <= 82; x += 4) fr += `<path d="M${x} 108 V117" stroke="${hex}" stroke-width="2.2" stroke-linecap="round"/>`;
+    return D(cloth(id, sc, hex, mat, `<path d="M28 74 L92 74" stroke="${dk}" stroke-width="2" opacity=".5"/>` + fold(id, 'M44 14 Q48 44 42 72') + fold(id, 'M76 14 Q72 44 78 72', true), decor) + fr);
+  }
   let inner;
   if (t === 'Montre') inner = `<rect x="44" y="4" width="32" height="112" rx="8" fill="${shade(hex, 0.45)}"/><rect x="44" y="4" width="32" height="112" rx="8" fill="url(#gx${id})"/>
     <circle cx="60" cy="60" r="30" fill="url(#m${id})" filter="url(#s${id})"/><circle cx="60" cy="60" r="24" fill="#F6F5F1"/><circle cx="60" cy="60" r="24" fill="none" stroke="rgba(0,0,0,.25)"/>
@@ -202,7 +241,7 @@ function accessory(it, id, hex) {
   else if (t === 'Bague') inner = `<ellipse cx="60" cy="66" rx="34" ry="30" fill="none" stroke="url(#m${id})" stroke-width="10" filter="url(#s${id})"/><ellipse cx="60" cy="36" rx="12" ry="8" fill="url(#m${id})"/>`;
   else if (t === 'Chaîne') inner = `<g filter="url(#s${id})">${Array.from({ length: 22 }, (_, i) => { const a = (i / 22) * Math.PI * 2; return `<ellipse cx="${60 + Math.sin(a) * 40}" cy="${56 + Math.cos(a) * 46}" rx="5" ry="3" transform="rotate(${-a * 57.3 + 90} ${60 + Math.sin(a) * 40} ${56 + Math.cos(a) * 46})" fill="none" stroke="url(#m${id})" stroke-width="2.4"/>`; }).join('')}</g>`;
   else inner = `<g filter="url(#s${id})">${Array.from({ length: 16 }, (_, i) => { const a = (i / 16) * Math.PI * 2; return `<circle cx="${60 + Math.sin(a) * 34}" cy="${60 + Math.cos(a) * 30}" r="6" fill="url(#m${id})"/>`; }).join('')}</g>`;
-  return wrap('0 0 120 120', defs(id, 'leather', hex).replace('</defs>', gloss + '</defs>') + inner, `Accessoire : ${it.name || t}`);
+  return D(inner);
 }
 
 /* ---------- point d'entrée ---------- */
@@ -215,14 +254,28 @@ export function torsoBox(item) {
   const w = { 'Ajusté': -6, Regular: 0, Ample: 10 }[item.fit] || 0;
   return { x0: 44 - w, x1: 156 + w, y0: 24, y1: 194 };
 }
+// Cadre de la pièce entière dans son gabarit ; « map » convertit vers le repère où le logo est dessiné
+const ACC_FRAME = { Casquette: [16, 104, 14, 96], Bonnet: [16, 104, 16, 106], Sac: [14, 106, 10, 114], 'Écharpe': [28, 92, 8, 117] };
+export function itemFrame(item) {
+  if (item.category === 'bas') return { x0: 14, x1: 106, y0: 8, y1: 262 };
+  if (item.category === 'chaussures') return { x0: 2, x1: 230, y0: 0, y1: 134, map: (x, y, w, h) => [(x - 2) / 1.04, (y - 26) / 1.04, w / 1.04, h / 1.04] };   // vers la chaussure de devant
+  const f = ACC_FRAME[item.type]; return f ? { x0: f[0], x1: f[1], y0: f[2], y1: f[3] } : null;
+}
+// Zone où replacer un logo, en coordonnées du gabarit (null : pas de logo pour ce type)
+export function decorBox(item) {
+  if (item.category === 'haut' || item.category === 'veste') return torsoBox(item);
+  if (item.category === 'bas') return { x0: 16, x1: 104, y0: 8, y1: 262 };
+  if (item.category === 'chaussures') return { x0: 10, x1: 148, y0: 36, y1: 92 };   // côté de la chaussure
+  return ACC_BOX[item.type] || null;
+}
 // logos : [{ href, x, y, w, h }] en coordonnées du gabarit, posés sur le tissu (texture et plis par-dessus)
 export function flatlaySVG(item, { logos = [] } = {}) {
   const id = ++uid, hex = safeColor(item.color_hex), label = String(item.name || item.type).replace(/[<>&"]/g, '');
   const mat = MATERIAL[item.type] || 'jersey';
   const decor = logos.map((l) => `<image href="${l.href}" xlink:href="${l.href}" x="${l.x}" y="${l.y}" width="${l.w}" height="${l.h}" preserveAspectRatio="xMidYMid meet"/>`).join('');
-  if (item.category === 'chaussures') return shoes(item, id, hex);
-  if (item.category === 'accessoire') return accessory(item, id, hex);
-  if (item.category === 'bas') return wrap('0 0 120 270', defs(id, mat, hex) + bottom(item, id, hex, mat), label);
+  if (item.category === 'chaussures') return shoes(item, id, hex, decor);
+  if (item.category === 'accessoire') return accessory(item, id, hex, decor);
+  if (item.category === 'bas') return wrap('0 0 120 270', defs(id, mat, hex) + bottom(item, id, hex, mat, decor), label);
   if (item.category === 'veste') { const j = jacket(item, id, hex, mat, decor); return wrap(j.vb, defs(id, mat, hex) + j.svg, label); }
   return wrap('0 0 200 200', defs(id, mat, hex) + top(item, id, hex, mat, decor), label);
 }
