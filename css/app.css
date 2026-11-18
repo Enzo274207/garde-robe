@@ -162,7 +162,8 @@ h1.h-font { margin: 0; font-size: clamp(30px, 9vw, 38px); line-height: .92; lett
   touch-action: pan-y; -webkit-user-select: none; user-select: none; transition: transform .2s;
 }
 .look-piece:active { transform: rotate(var(--rot, 0deg)) scale(.97); }
-.look-piece.photo { mix-blend-mode: multiply; }   /* sur la pièce elle-même : la rotation crée un contexte isolé */
+.look-piece.photo { mix-blend-mode: multiply; }
+.look-piece.cut img { filter: drop-shadow(0 5px 7px rgba(0,0,0,.2)); }   /* pièce détourée : posée sur la planche */   /* sur la pièce elle-même : la rotation crée un contexte isolé */
 .look-piece img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
 .look-piece svg { width: 100%; height: 100%; overflow: visible; }
 .look-piece:focus-visible { outline: 2px solid #0D0D0D; outline-offset: 3px; }
@@ -175,7 +176,7 @@ h1.h-font { margin: 0; font-size: clamp(30px, 9vw, 38px); line-height: .92; lett
 }
 .slot.on { border-color: var(--fg); }
 .slot-vis { width: 40px; height: 40px; border-radius: var(--r-sm); background: var(--tile); color: var(--muted); display: flex; align-items: center; justify-content: center; overflow: hidden; }
-.slot-vis img { width: 100%; height: 100%; object-fit: cover; }
+.slot-vis img { width: 100%; height: 100%; object-fit: contain; }
 .slot-vis svg { width: 88%; height: 88%; }
 .slot-dot { width: 24px; height: 24px; border-radius: 12px; border: 1px solid var(--line2); }
 .slot-k { font-size: 11px; font-weight: 600; color: var(--muted); }
@@ -272,6 +273,7 @@ h1.h-font { margin: 0; font-size: clamp(30px, 9vw, 38px); line-height: .92; lett
 .sheet-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; padding: 10px 20px 12px; }
 .sheet-head h2 { margin: 0; font-size: 26px; line-height: 1; letter-spacing: -.03em; text-transform: uppercase; }
 .sheet-body { overflow-y: auto; overscroll-behavior: contain; padding: 4px 20px calc(var(--safe-bottom) + 24px); display: flex; flex-direction: column; gap: 16px; }
+.sheet-body > * { flex-shrink: 0; }   /* sinon les boutons s'écrasent quand le formulaire dépasse l'écran */
 .field { display: flex; flex-direction: column; gap: 8px; font-size: 13px; font-weight: 600; }
 .field-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) 76px; gap: 8px; }
 .input { height: 46px; border-radius: var(--r); border: 1px solid var(--line2); background: var(--surface); padding: 0 14px; font-size: 16px; font-weight: 400; width: 100%; }
@@ -281,6 +283,12 @@ h1.h-font { margin: 0; font-size: clamp(30px, 9vw, 38px); line-height: .92; lett
 .photo-slot { height: 140px; border-radius: var(--r-lg); border: 1.5px dashed var(--line2); background: var(--surface); color: var(--muted); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-size: 13px; font-weight: 500; position: relative; overflow: hidden; }
 .photo-slot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: var(--tile); }
 .photo-slot input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.photo-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.photo-slot.cut img { background: #F4F3EF; filter: drop-shadow(0 4px 6px rgba(0,0,0,.18)); }
+.cut-seg button { font-size: 12px; }
+.cut-busy { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; background: rgba(244,243,239,.85); color: #0D0D0D; font-size: 13px; font-weight: 600; }
+.cut-busy .spinner { margin: 0; width: 22px; height: 22px; border-top-color: #0D0D0D; }
+.cut-msg { margin: 0; font-size: 12px; line-height: 1.35; color: var(--danger); }
 .photo-slot .x { position: absolute; top: 4px; right: 4px; z-index: 2; width: 44px; height: 44px; border-radius: 50%; border: none; background: rgba(0,0,0,.72); color: #fff; display: flex; align-items: center; justify-content: center; padding: 0; }
 .face-preview { align-self: center; width: 132px; height: 132px; border-radius: var(--r-lg); background: var(--chip); overflow: hidden; flex-shrink: 0; }
 @keyframes fade { from { opacity: 0 } }

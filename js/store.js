@@ -9,6 +9,7 @@ const today = () => new Date().toLocaleDateString('sv-SE'); // AAAA-MM-JJ, heure
 const SIGN_SECONDS = 60 * 60 * 24;             // validité des liens de photos : 24 h
 const RESIGN_MARGIN = 60 * 60 * 1000;          // on renouvelle 1 h avant l'expiration
 const MAX_UPLOAD = 5 * 1024 * 1024;            // même limite que le bucket (migration 001)
+const extOf = (b) => (b?.type === 'image/png' ? '.png' : b?.type === 'image/webp' ? '.webp' : '.jpg');
 const OUTFIT_KEYS = ['top_id', 'bottom_id', 'shoes_id', 'accessory_id', 'jacket_id'];
 
 // Champs d'une pièce (valeurs par défaut pour les anciennes fiches)
@@ -109,8 +110,8 @@ const demo = {
     const it = { ...ITEM_DEFAULTS, ...meta, id, created_at: new Date().toISOString(), front_path: null, back_path: null };
     const written = [];
     try {
-      if (front) { it.front_path = `demo/${id}-front`; await idbPut(it.front_path, front); written.push(it.front_path); }
-      if (back) { it.back_path = `demo/${id}-back`; await idbPut(it.back_path, back); written.push(it.back_path); }
+      if (front) { it.front_path = `demo/${id}-front${extOf(front)}`; await idbPut(it.front_path, front); written.push(it.front_path); }
+      if (back) { it.back_path = `demo/${id}-back${extOf(back)}`; await idbPut(it.back_path, back); written.push(it.back_path); }
       d.items.push(it); this._save(d);
     } catch (e) { for (const p of written) await idbDel(p).catch(() => {}); throw e; }
     return this._withUrls(it);
@@ -121,8 +122,8 @@ const demo = {
     if (!it) throw new Error('Cette pièce n’existe plus.');
     const old = [], written = [], next = { ...it, ...patch };
     try {
-      if (front) { next.front_path = `demo/${id}-front-${Date.now()}`; await idbPut(next.front_path, front); written.push(next.front_path); if (it.front_path) old.push(it.front_path); }
-      if (back) { next.back_path = `demo/${id}-back-${Date.now()}`; await idbPut(next.back_path, back); written.push(next.back_path); if (it.back_path) old.push(it.back_path); }
+      if (front) { next.front_path = `demo/${id}-front-${Date.now()}${extOf(front)}`; await idbPut(next.front_path, front); written.push(next.front_path); if (it.front_path) old.push(it.front_path); }
+      if (back) { next.back_path = `demo/${id}-back-${Date.now()}${extOf(back)}`; await idbPut(next.back_path, back); written.push(next.back_path); if (it.back_path) old.push(it.back_path); }
       Object.assign(it, next); this._save(d);
     } catch (e) { for (const p of written) await idbDel(p).catch(() => {}); throw e; }
     for (const p of old) { this._forget(p); await idbDel(p).catch(() => {}); }

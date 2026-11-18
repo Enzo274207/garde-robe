@@ -1,6 +1,7 @@
 import { CATEGORIES, CAT_ORDER, PALETTE, AV, DEFAULT_AVATAR, SEASONS, STYLES, WARMTH, FORMALITY, isNeutral, safeColor } from './catalog.js';
 import { faceSVG, garmentSVG, esc } from './draw.js';
 import { flatlaySVG } from './flatlay.js';
+import { cutout, isCutPath } from './cutout.js';
 import { demo, online, isDemo, today } from './store.js';
 import { createSync } from './sync.js';
 import { compressImage } from './image.js';
@@ -282,7 +283,7 @@ function lookBoard() {
   const pieces = Object.entries(L).map(([cat, [x, y, w, h, rot]]) => {
     const it = item(S.sel[cat]); if (!it) return '';
     const vis = it.front_url ? `<img src="${esc(it.front_url)}" alt="" data-photo-img draggable="false">` : flatlaySVG(it);
-    return `<button class="look-piece ${it.front_url ? 'photo' : ''}" data-act="openPick" data-swipe="${cat}" data-cat="${cat}" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%;--rot:${rot}deg"
+    return `<button class="look-piece ${it.front_url ? (isCutPath(it.front_path) ? 'cut' : 'photo') : ''}" data-act="openPick" data-swipe="${cat}" data-cat="${cat}" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%;--rot:${rot}deg"
       aria-label="${LOOK_LABEL[cat]} : ${esc(it.name)}. Toucher pour changer, glisser pour passer à la suivante">${vis}</button>`;
   }).join('');
   return pieces || '<div class="look-empty">Choisis un haut et un bas pour composer ta tenue.</div>';
@@ -467,9 +468,14 @@ function viewDetail() {
 function viewImport() {
   const f = S.sheet.form, C = CATEGORIES[f.category];
   const slot = (side, label) => {
-    const url = f[side + 'Preview'];
-    return `<label class="photo-slot">${url ? `<img src="${esc(url)}" alt="Aperçu ${label.toLowerCase()}"><button type="button" class="x" data-act="clearPhoto" data-side="${side}" aria-label="Retirer la photo">${ico('close', 14, 2.2)}</button>` : `${ico('cam', 26, 1.6)}${label}`}
-      <input type="file" accept="image/*" data-photo="${side}" aria-label="${label}"></label>`;
+    const url = f[side + 'Preview'], busy = f[side + 'Busy'];
+    const isCut = f[side] ? (f[side + 'Use'] === 'cut' && !!f[side + 'Cut']) : f[side + 'IsCut'];
+    const tools = busy ? '' : f[side + 'Cut'] && f[side + 'Raw']
+      ? `<div class="seg cut-seg" role="group" aria-label="Photo ${label.toLowerCase()}"><button type="button" data-act="useCut" data-side="${side}" data-v="cut" aria-pressed="${f[side + 'Use'] === 'cut'}">Détourée</button><button type="button" data-act="useCut" data-side="${side}" data-v="raw" aria-pressed="${f[side + 'Use'] === 'raw'}">D’origine</button></div>`
+      : url && !f[side] && !f[side + 'IsCut'] ? `<button type="button" class="more-toggle" data-act="cutExisting" data-side="${side}">Détourer cette photo</button>` : '';
+    return `<div class="photo-col"><label class="photo-slot ${isCut ? 'cut' : ''}">${url ? `<img src="${esc(url)}" alt="Aperçu ${label.toLowerCase()}"><button type="button" class="x" data-act="clearPhoto" data-side="${side}" aria-label="Retirer la photo">${ico('close', 14, 2.2)}</button>` : `${ico('cam', 26, 1.6)}${label}`}
+      ${busy ? '<span class="cut-busy" role="status"><span class="spinner"></span>Détourage…</span>' : ''}
+      <input type="file" accept="image/*" data-photo="${side}" aria-label="${label}"></label>${tools}${f[side + 'Msg'] ? `<p class="cut-msg">${esc(f[side + 'Msg'])}</p>` : ''}</div>`;
   };
   const chips = (act, opts, cur, labelFn = (o) => o) => opts.map((o) => `<button type="button" class="chip" aria-pressed="${Array.isArray(cur) ? cur.includes(o) : cur === o}" data-act="${act}" data-v="${esc(o)}">${esc(labelFn(o))}</button>`).join('');
   const levels = (act, labels, cur) => `<div class="seg">${labels.map((l, i) => `<button type="button" aria-pressed="${cur === i + 1}" data-act="${act}" data-v="${i + 1}" title="${esc(l)}">${esc(l)}</button>`).join('')}</div>`;
@@ -499,7 +505,7 @@ function viewImport() {
       </div>
       <label class="check"><input type="checkbox" data-check="favorite" ${f.favorite ? 'checked' : ''}> Pièce favorite</label>` : ''}
       ${S.sheet.err ? `<div class="err" role="alert">${esc(S.sheet.err)}</div>` : ''}
-      <button class="btn accent" data-act="submitImport" ${S.busy ? 'disabled' : ''}>${S.busy ? 'Envoi en cours…' : editing ? 'Enregistrer les modifications' : 'Ajouter à ma garde-robe'}</button>
+      <button class="btn accent" data-act="submitImport" ${S.busy || f.frontBusy || f.backBusy ? 'disabled' : ''}>${f.frontBusy || f.backBusy ? 'Détourage en cours…' : S.busy ? 'Envoi en cours…' : editing ? 'Enregistrer les modifications' : 'Ajouter à ma garde-robe'}</button>
     </div>
   </div></div>`;
 }
@@ -572,7 +578,10 @@ function newForm(cat = 'haut') {
   return {
     name: '', category: cat, type: C.types[0], color_hex: PALETTE[0].hex, color_name: PALETTE[0].label, fit: C.fits[1] || C.fits[0] || '',
     secondary_colors: [], seasons: [], style: null, warmth: null, formality: null, material: '', brand: '', size: '', favorite: false,
-    front: null, back: null, frontPreview: null, backPreview: null
+    front: null, back: null, frontPreview: null, backPreview: null,
+    // détourage : version détourée / d'origine, choix, message, en cours
+    frontCut: null, frontRaw: null, frontUse: 'cut', frontMsg: '', frontBusy: false, frontIsCut: false,
+    backCut: null, backRaw: null, backUse: 'cut', backMsg: '', backBusy: false, backIsCut: false
   };
 }
 function currentOutfit() {
@@ -660,7 +669,8 @@ const actions = {
         ...newForm(it.category), name: it.name, category: it.category, type: it.type, color_hex: it.color_hex, color_name: it.color_name, fit: it.fit || '',
         secondary_colors: [...(it.secondary_colors || [])], seasons: [...(it.seasons || [])], style: it.style, warmth: it.warmth, formality: it.formality,
         material: it.material || '', brand: it.brand || '', size: it.size || '', favorite: !!it.favorite,
-        frontPreview: it.front_url, backPreview: it.back_url
+        frontPreview: it.front_url, backPreview: it.back_url,
+        frontIsCut: isCutPath(it.front_path), backIsCut: isCutPath(it.back_path)
       }
     };
     render();
@@ -671,7 +681,7 @@ const actions = {
   iCat(el) { const f = S.sheet.form, C = CATEGORIES[el.dataset.v]; f.category = el.dataset.v; f.type = C.types[0]; f.fit = C.fits[1] || C.fits[0] || ''; render(); },
   iType(el) { S.sheet.form.type = el.dataset.v; render(); },
   iFit(el) { S.sheet.form.fit = el.dataset.v; render(); },
-  iColor(el) { const p = PALETTE.find((x) => x.hex === el.dataset.v); S.sheet.form.color_hex = p.hex; S.sheet.form.color_name = p.label; render(); },
+  iColor(el) { const p = PALETTE.find((x) => x.hex === el.dataset.v); S.sheet.form.color_hex = p.hex; S.sheet.form.color_name = p.label; S.sheet.form.colorTouched = true; render(); },
   iColor2(el) {
     const f = S.sheet.form, v = el.dataset.v;
     if (f.secondary_colors.includes(v)) f.secondary_colors = f.secondary_colors.filter((x) => x !== v);
@@ -683,7 +693,26 @@ const actions = {
   iStyle(el) { const f = S.sheet.form; f.style = f.style === el.dataset.v ? null : el.dataset.v; render(); },
   iWarmth(el) { const f = S.sheet.form, v = Number(el.dataset.v); f.warmth = f.warmth === v ? null : v; render(); },
   iFormality(el) { const f = S.sheet.form, v = Number(el.dataset.v); f.formality = f.formality === v ? null : v; render(); },
-  clearPhoto(el, ev) { ev.preventDefault(); const f = S.sheet.form, s = el.dataset.side; dropPreview(f[s + 'Preview']); f[s] = null; f[s + 'Preview'] = null; render(); },
+  clearPhoto(el, ev) {
+    ev.preventDefault(); const f = S.sheet.form, s = el.dataset.side; dropPreview(f[s + 'Preview']);
+    Object.assign(f, { [s]: null, [s + 'Preview']: null, [s + 'Cut']: null, [s + 'Raw']: null, [s + 'Msg']: '', [s + 'IsCut']: false });
+    render();
+  },
+  // choisir entre la version détourée et la photo d'origine
+  useCut(el) {
+    const f = S.sheet.form, s = el.dataset.side, v = el.dataset.v;
+    const blob = v === 'cut' ? f[s + 'Cut'] : f[s + 'Raw']; if (!blob) return;
+    dropPreview(f[s + 'Preview']); f[s] = blob; f[s + 'Use'] = v; f[s + 'Preview'] = makePreview(blob); render();
+  },
+  // détourer une photo déjà enregistrée (pièces importées avant le détourage)
+  async cutExisting(el) {
+    const f = S.sheet.form, s = el.dataset.side, url = f[s + 'Preview']; if (!url) return;
+    f[s + 'Busy'] = true; f[s + 'Msg'] = ''; render();
+    try {
+      const res = await fetch(url); if (!res.ok) throw new Error();
+      await applyPhoto(s, await res.blob(), true);
+    } catch (e) { f[s + 'Busy'] = false; f[s + 'Msg'] = 'Impossible de récupérer la photo (connexion ?).'; render(); }
+  },
   async submitImport() {
     const f = S.sheet.form, editId = S.sheet.editId;
     const name = (f.name.trim() || `${f.type} ${f.color_name.toLowerCase()}`).slice(0, 80);
@@ -800,14 +829,35 @@ app.addEventListener('change', async (ev) => {
   if (ev.target.dataset.check && S.sheet?.form) { S.sheet.form[ev.target.dataset.check] = ev.target.checked; return; }
   const side = ev.target.dataset.photo;
   if (!side || !ev.target.files?.[0] || !S.sheet?.form) return;
-  try {
-    const blob = await compressImage(ev.target.files[0]);
-    const f = S.sheet?.form; if (!f) return;
-    dropPreview(f[side + 'Preview']);
-    f[side] = blob; f[side + 'Preview'] = makePreview(blob);
-    render();
-  } catch (e) { toast('Photo illisible, essaie une autre image', 'err'); }
+  await applyPhoto(side, ev.target.files[0], false);
 });
+// Prépare une photo : version d'origine compressée (JPEG) + version détourée (transparente).
+// La version détourée est choisie par défaut quand le détourage réussit.
+async function applyPhoto(side, file, keepRawPreview) {
+  const f = S.sheet?.form; if (!f) return;
+  f[side + 'Busy'] = true; f[side + 'Msg'] = ''; render();
+  try {
+    const raw = await compressImage(file);
+    let cut = null;
+    try { cut = await cutout(file); } catch (e) { cut = { ok: false, reason: 'Détourage impossible sur cette image.' }; }
+    if (S.sheet?.form !== f) return;   // panneau fermé entre-temps
+    dropPreview(f[side + 'Preview']);
+    f[side + 'Raw'] = raw; f[side + 'Cut'] = cut.ok ? cut.blob : null; f[side + 'Use'] = cut.ok ? 'cut' : 'raw';
+    f[side] = cut.ok ? cut.blob : raw; f[side + 'Preview'] = makePreview(f[side]);
+    f[side + 'Msg'] = cut.ok ? '' : cut.reason;
+    // couleur proposée d'après le vêtement détouré (tant qu'elle n'a pas été choisie à la main)
+    if (cut.ok && cut.rgb && side === 'front' && !f.colorTouched && !S.sheet.editId) {
+      const d = (h) => { // écart de luminosité + écart de teinte (la teinte compte davantage)
+        const c = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)), dr = c[0] - cut.rgb[0], dg = c[1] - cut.rgb[1], db = c[2] - cut.rgb[2];
+        const dl = dr * 0.3 + dg * 0.59 + db * 0.11; return 0.4 * dl * dl + 4 * ((dr - dl) ** 2 + (dg - dl) ** 2 + (db - dl) ** 2);
+      };
+      const best = PALETTE.reduce((a, b) => (d(b.hex) < d(a.hex) ? b : a));
+      f.color_hex = best.hex; f.color_name = best.label;
+    }
+    if (!cut.ok && keepRawPreview) { f[side] = null; f[side + 'Raw'] = null; }   // rien à changer sur une photo existante
+  } catch (e) { toast('Photo illisible, essaie une autre image', 'err'); }
+  f[side + 'Busy'] = false; render();
+}
 // Photo dont le lien a expiré entre deux renouvellements : on renouvelle tout de suite
 app.addEventListener('error', (ev) => {
   if (ev.target?.matches?.('img[data-photo-img]') && !refreshPhotoLinks.pending) {

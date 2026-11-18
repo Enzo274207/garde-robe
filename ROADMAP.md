@@ -10,7 +10,8 @@ Plan validé par Enzo, d'après le brief « Évolution complète de Garde-robe �
 | 4 | Refonte de l'interface style streetwear : navigation en bas de l'écran (onglets), accueil repensé, choix de la veste depuis l'accueil | ✅ fait |
 | **5** | **Styliste / suggestions avancées** (règles locales, pas d'IA externe pour l'instant) | ⏳ **prochaine** |
 | — | Icône PNG pour l'écran d'accueil iPhone (apple-touch-icon) | ⏳ |
-| plus tard | Amis et partage, calendrier des tenues, détourage des photos | idées |
+| — | Détourage automatique des photos à l'import (sur l'appareil) | ✅ fait |
+| plus tard | Amis et partage, calendrier des tenues | idées |
 
 ## Règles à respecter (toutes les étapes)
 - Ne jamais perdre de données ni casser les comptes. Migrations réversibles et non destructives.
