@@ -24,7 +24,11 @@ const P = {
   trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
   check: 'M5 12.5l4.5 4.5L19 7.5',
   heart: 'M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z',
-  retry: 'M4 12a8 8 0 1 0 2.3-5.7M4 4v4h4'
+  retry: 'M4 12a8 8 0 1 0 2.3-5.7M4 4v4h4',
+  hanger: 'M10 5a2 2 0 1 1 2 2v1.5L3.4 14.6c-.9.6-.5 1.9.6 1.9h16c1.1 0 1.5-1.3.6-1.9L12 8.5',
+  moon: 'M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z',
+  logout: 'M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10',
+  chev: 'M9 6l6 6-6 6'
 };
 const ico = (k, size = 22, sw = 1.7, fill = 'none') => `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${fill}" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"><path d="${P[k]}"/></svg>`;
 const col = (hex) => safeColor(hex);
@@ -50,7 +54,7 @@ const item = (id) => S.items.find((i) => i.id === id) || null;
 /* ---------------- thème ---------------- */
 function applyTheme(t) {
   document.documentElement.dataset.theme = t;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', t === 'dark' ? '#121212' : '#F4F1EC');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', t === 'dark' ? '#0B0B0B' : '#F2F1ED');
   try { localStorage.setItem('garderobe-theme', t); } catch (e) { /* stockage indisponible */ }
 }
 applyTheme((() => { try { return localStorage.getItem('garderobe-theme'); } catch (e) { return null; } })() || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
@@ -169,8 +173,10 @@ function route() {
     if (S.route.name !== 'cat' || S.route.cat !== b) S.filters = { type: 'Tous', fit: 'Toutes', color: null, sort: 0 };
     S.route = { name: 'cat', cat: b };
   } else if (a === 'historique') S.route = { name: 'history' };
+  else if (a === 'garde-robe') S.route = { name: 'wardrobe' };
+  else if (a === 'profil') S.route = { name: 'profile' };
   else S.route = { name: 'home' };
-  S.detail = null;
+  S.detail = null; S.confirmAccount = false; S.confirmSignOut = false;
 }
 addEventListener('hashchange', () => { route(); render(); scrollTo(0, 0); });
 
@@ -185,8 +191,12 @@ function render() {
   else if (!S.user) html = viewAuth();
   else if (S.route.name === 'cat') html = viewCat(S.route.cat);
   else if (S.route.name === 'history') html = viewHistory();
+  else if (S.route.name === 'wardrobe') html = viewWardrobe();
+  else if (S.route.name === 'profile') html = viewProfile();
   else html = viewHome();
+  if (S.ready && S.user && !S.loadErr) html += tabBar();
   if (S.user && !S.loadErr && S.detail) html += viewDetail();
+  if (S.user && S.sheet?.kind === 'pick') html += viewPick();
   if (S.user && S.sheet?.kind === 'import') html += viewImport();
   if (S.user && S.sheet?.kind === 'avatar') html += viewAvatar();
   if (S.user && S.sheet?.kind === 'sync') html += viewSync();
@@ -236,11 +246,26 @@ function viewAuth() {
   </main>`;
 }
 
-function pieceRow(it, fallbackLabel, removeCat) {
-  if (!it) return `<div class="piece-row"><span class="dot" style="background:transparent;border-style:dashed"></span><span class="name" style="color:var(--muted)">${fallbackLabel}</span></div>`;
-  const vis = it.front_url ? `<img class="thumb" src="${esc(it.front_url)}" alt="">` : `<span class="dot" style="background:${col(it.color_hex)}"></span>`;
-  const rm = removeCat ? `<button class="mini-x" data-act="unselect" data-cat="${removeCat}" aria-label="Retirer ${esc(it.name)} de la tenue">${ico('close', 14, 2.2)}</button>` : '';
-  return `<div class="piece-row">${vis}<span class="name">${esc(it.name)}</span>${it.fit ? `<span class="tag">${esc(it.fit)}</span>` : ''}${rm}</div>`;
+/* ---------------- barre d'onglets ---------------- */
+function tabBar() {
+  const r = S.route.name, cur = r === 'cat' ? 'wardrobe' : r;
+  const tab = (key, href, icon, label) => `<a class="tab" href="${href}" ${cur === key ? 'aria-current="page"' : ''}>${ico(icon, 22, 1.9)}<span>${label}</span></a>`;
+  return `<nav class="tabbar" aria-label="Navigation principale">
+    ${tab('home', '#/', 'haut', 'Tenue')}${tab('wardrobe', '#/garde-robe', 'hanger', 'Garde-robe')}
+    <button class="tab add" data-act="openImport" aria-label="Importer une pièce"><span>${ico('plus', 26, 2.4)}</span></button>
+    ${tab('history', '#/historique', 'hist', 'Historique')}${tab('profile', '#/profil', 'avatar', 'Profil')}
+  </nav>`;
+}
+
+/* ---------------- accueil ---------------- */
+const SLOTS = [['haut', 'Haut'], ['veste', 'Veste'], ['bas', 'Bas'], ['chaussures', 'Chaussures'], ['accessoire', 'Accessoire']];
+const OPTIONAL = new Set(['veste', 'accessoire']);
+function slotBtn(cat, label) {
+  const it = item(S.sel[cat]);
+  const vis = it ? (it.front_url ? `<img src="${esc(it.front_url)}" alt="" data-photo-img>` : `<span class="slot-dot" style="background:${col(it.color_hex)}"></span>`) : ico(OPTIONAL.has(cat) ? 'plus' : cat, 20, 1.8);
+  const name = it ? esc(it.name) : OPTIONAL.has(cat) ? 'Ajouter' : 'Aucun';
+  return `<button class="slot ${it ? 'on' : ''}" data-act="openPick" data-cat="${cat}" aria-label="${label} : ${it ? esc(it.name) : 'aucun'}. Changer">
+    <span class="slot-vis">${vis}</span><span class="slot-k">${label}</span><span class="slot-n">${name}</span></button>`;
 }
 
 function viewHome() {
@@ -249,41 +274,87 @@ function viewHome() {
   const arrow = (cat, side, y, label) => `<button class="arrow ${side === -1 ? 'l' : 'r'}" style="top:${y}px" data-act="step" data-cat="${cat}" data-d="${side}" aria-label="${label}" ${n[cat] < 2 ? 'disabled' : ''}>${ico(side === -1 ? 'left' : 'right', 22, 2.2)}</button>`;
   const wornToday = S.wears.find((w) => w.worn_on === today());
   const isWorn = wornToday && wornToday.top_id === S.sel.haut && wornToday.bottom_id === S.sel.bas && wornToday.shoes_id === S.sel.chaussures && (wornToday.jacket_id || null) === (S.sel.veste || null);
-  const railLink = (cat) => `<a class="rail-btn" href="#/c/${cat}">${ico(cat)}${CATEGORIES[cat].title}</a>`;
+  const dark = document.documentElement.dataset.theme === 'dark';
   return `${demoBanner()}<main class="screen">
-    <header class="top">
-      <div><div class="kicker">${cap(dateFr(new Date(), { weekday: 'long', day: 'numeric', month: 'long' }))}</div><h1 class="h-font">Ma tenue</h1></div>
-      <button class="me-btn" data-act="openAvatar" aria-label="Modifier mon avatar et mon profil">${faceSVG(S.profile.avatar, 36)}<span>${esc(S.profile.username || 'Moi')}</span></button>
+    <header class="home-head">
+      <div><div class="kicker">${cap(dateFr(new Date(), { weekday: 'long', day: 'numeric', month: 'long' }))}</div><h1 class="h-font display">Fit du jour</h1></div>
+      <button class="icon-btn" data-act="theme" aria-pressed="${dark}" aria-label="${dark ? 'Passer en mode clair' : 'Passer en mode sombre'}">${ico('moon', 20, 1.9, dark ? 'currentColor' : 'none')}</button>
     </header>
-    <div class="stage">
-      <nav class="rail" aria-label="Ma garde-robe">
-        <button class="rail-btn" data-act="openAvatar">${ico('avatar')}Avatar</button>
-        ${railLink('haut')}${railLink('veste')}${railLink('bas')}${railLink('chaussures')}${railLink('accessoire')}
-      </nav>
+    <div class="stage2">
+      <span class="stage-word" aria-hidden="true">${esc(dateFr(new Date(), { weekday: 'long' }))}</span>
+      <span class="sticker" role="status">${esc(S.note)}</span>
       <div class="figure-wrap">
         ${figureSVG({ top, bottom, shoes, jacket, avatar: S.profile.avatar })}
         ${arrow('haut', -1, 118, 'Haut précédent')}${arrow('haut', 1, 118, 'Haut suivant')}
         ${arrow('bas', -1, 286, 'Bas précédent')}${arrow('bas', 1, 286, 'Bas suivant')}
         ${arrow('chaussures', -1, 378, 'Chaussures précédentes')}${arrow('chaussures', 1, 378, 'Chaussures suivantes')}
       </div>
-      <nav class="rail" aria-label="Actions">
-        <button class="rail-btn primary" data-act="suggest">${ico('spark')}Suggestion</button>
-        <button class="rail-btn" data-act="theme" aria-pressed="${document.documentElement.dataset.theme === 'dark'}"><span class="toggle"><i></i></span>${document.documentElement.dataset.theme === 'dark' ? 'Sombre' : 'Clair'}</button>
-        <button class="rail-btn" data-act="friends">${ico('friends')}Amis</button>
-        <button class="rail-btn" data-act="saveOutfit" ${S.busy ? 'disabled' : ''}>${ico('save')}Enregistrer</button>
-        <a class="rail-btn" href="#/historique">${ico('hist')}Historique</a>
-      </nav>
     </div>
-    <section class="card" aria-label="Tenue en cours">
-      <div class="card-head"><h2 class="h-font">Tenue en cours</h2><span class="note">${esc(S.note)}</span></div>
-      ${pieceRow(top, 'Aucun haut — importe-en un')}
-      ${jacket ? pieceRow(jacket, '', 'veste') : ''}
-      ${pieceRow(bottom, 'Aucun bas — importe-en un')}
-      ${pieceRow(shoes, 'Aucune paire — importe-en une')}
-      ${S.sel.accessoire ? pieceRow(item(S.sel.accessoire), '', 'accessoire') : ''}
-      <button class="btn ghost" style="height:44px;margin-top:4px" data-act="wear" ${!top || !bottom || S.busy ? 'disabled' : ''}>${isWorn ? ico('check', 18, 2) + 'Portée aujourd’hui' : 'Je la porte aujourd’hui'}</button>
+    ${!S.items.length ? '<div class="info">Ta garde-robe est vide : touche <b>+</b> en bas pour importer ta première pièce.</div>' : ''}
+    <section class="slots" aria-label="Tenue en cours">${SLOTS.map(([c, l]) => slotBtn(c, l)).join('')}</section>
+    <div class="home-actions">
+      <button class="btn accent" data-act="suggest">${ico('spark', 20, 1.9)}Suggestion</button>
+      <button class="btn ghost sq" data-act="saveOutfit" aria-label="Enregistrer la tenue" ${S.busy ? 'disabled' : ''}>${ico('save', 20, 1.9)}</button>
+    </div>
+    <button class="btn dark" data-act="wear" ${!top || !bottom || S.busy ? 'disabled' : ''}>${isWorn ? ico('check', 18, 2.2) + 'Portée aujourd’hui' : 'Je la porte aujourd’hui'}</button>
+  </main>`;
+}
+
+/* ---------------- choix d'une pièce depuis l'accueil ---------------- */
+function viewPick() {
+  const cat = S.sheet.cat, C = CATEGORIES[cat], list = byCat(cat), cur = S.sel[cat];
+  const none = OPTIONAL.has(cat) ? `<button class="pick ${!cur ? 'on' : ''}" data-act="pick" data-cat="${cat}" data-id="" aria-pressed="${!cur}"><span class="pick-img none">${ico('close', 26, 1.8)}</span><b>${cat === 'veste' ? 'Sans veste' : 'Aucun'}</b></button>` : '';
+  const tiles = list.map((it) => `<button class="pick ${cur === it.id ? 'on' : ''}" data-act="pick" data-cat="${cat}" data-id="${it.id}" aria-pressed="${cur === it.id}"><span class="pick-img">${tileVisual(it)}</span><b>${esc(it.name)}</b></button>`).join('');
+  return `<div class="overlay" data-act="closeSheetBg"><div class="sheet" role="dialog" aria-modal="true" aria-label="Choisir : ${C.title}">
+    <span class="grab"></span>
+    <div class="sheet-head"><h2 class="h-font">${C.title}</h2><button class="icon-btn" data-act="closeSheet" aria-label="Fermer">${ico('close', 18, 2)}</button></div>
+    <div class="sheet-body">
+      ${list.length ? `<div class="pick-grid">${none}${tiles}</div>
+      <button class="more-toggle" data-act="pickBrowse" data-cat="${cat}">Voir toutes les ${C.title.toLowerCase()} (filtres) →</button>`
+      : `<div class="empty" style="padding:24px 10px"><b>Aucune pièce ici</b>Importe ${C.one} pour la porter.</div>
+      <button class="btn accent" data-act="openImport" data-cat="${cat}">${ico('plus', 20, 2)}Importer ${C.one}</button>`}
+    </div>
+  </div></div>`;
+}
+
+/* ---------------- garde-robe ---------------- */
+function viewWardrobe() {
+  const total = S.items.length, favs = S.items.filter((i) => i.favorite).length;
+  const thumb = (it) => (it.front_url ? `<img src="${esc(it.front_url)}" alt="" data-photo-img>` : `<span style="background:${col(it.color_hex)}"></span>`);
+  return `${demoBanner()}<main class="screen">
+    <header class="cat-head"><div class="t"><h1 class="h-font">Garde-robe</h1><span class="sub">${total} pièce${total > 1 ? 's' : ''}${favs ? ` · ${favs} favori${favs > 1 ? 's' : ''}` : ''}</span></div></header>
+    <div class="cats">${CAT_ORDER.map((cat) => {
+      const list = byCat(cat), C = CATEGORIES[cat];
+      return `<a class="cat-card" href="#/c/${cat}">
+        <span class="cat-ico">${ico(cat, 24, 1.8)}</span>
+        <span class="cat-t"><b class="h-font">${C.title}</b><span>${list.length} pièce${list.length > 1 ? 's' : ''}</span></span>
+        <span class="cat-thumbs" aria-hidden="true">${list.slice(0, 3).map(thumb).join('')}</span>${ico('chev', 18, 2)}</a>`;
+    }).join('')}</div>
+  </main>`;
+}
+
+/* ---------------- profil ---------------- */
+function viewProfile() {
+  const dark = document.documentElement.dataset.theme === 'dark', n = S.net;
+  const syncState = n.conflicts ? `${n.conflicts} à vérifier` : n.offline ? 'Hors connexion' : n.pending ? `${n.pending} en attente` : 'À jour';
+  return `${demoBanner()}<main class="screen">
+    <header class="cat-head"><div class="t"><h1 class="h-font">Profil</h1>${S.user?.email ? `<span class="sub">${esc(S.user.email)}</span>` : ''}</div></header>
+    <section class="profile-card">
+      <span class="pf-face">${faceSVG(S.profile.avatar, 84)}</span>
+      <div style="min-width:0"><b class="h-font pf-name">${esc(S.profile.username || 'Moi')}</b>
+        <div class="stats"><span><b>${S.items.length}</b>pièces</span><span><b>${S.outfits.length}</b>tenues</span><span><b>${S.wears.length}</b>jours</span></div></div>
     </section>
-    <button class="btn dark" data-act="openImport">${ico('plus', 20, 2)}Importer une pièce</button>
+    <div class="menu">
+      <button class="menu-row" data-act="openAvatar">${ico('avatar', 20, 1.8)}<span class="grow">Modifier mon avatar</span>${ico('chev', 18, 2)}</button>
+      <button class="menu-row" data-act="theme" aria-pressed="${dark}">${ico('moon', 20, 1.8)}<span class="grow">Mode sombre</span><span class="toggle"><i></i></span></button>
+      ${!isDemo ? `<button class="menu-row" data-act="openSync">${ico('retry', 20, 1.8)}<span class="grow">Synchronisation</span><span class="note">${syncState}</span></button>` : ''}
+    </div>
+    <div class="menu">
+      <button class="menu-row ${S.confirmSignOut ? 'confirm' : ''}" data-act="signOut" ${S.busy ? 'disabled' : ''}>${ico('logout', 20, 1.8)}<span class="grow">${S.confirmSignOut ? 'Se déconnecter quand même' : 'Se déconnecter'}</span></button>
+      <button class="menu-row ${S.confirmAccount ? 'confirm' : 'danger'}" data-act="deleteAccount" ${S.busy ? 'disabled' : ''}>${ico('trash', 20, 1.8)}<span class="grow">${S.confirmAccount ? 'Confirmer : tout supprimer définitivement' : isDemo ? 'Réinitialiser la démo' : 'Supprimer mon compte et mes données'}</span></button>
+    </div>
+    ${S.confirmSignOut ? `<div class="hint" style="color:var(--danger)">${n.pending + n.conflicts} modification(s) pas encore envoyée(s) seront perdues.</div>` : ''}
+    ${S.confirmAccount ? `<div class="hint" style="color:var(--danger)">${isDemo ? 'Toutes les données de démo seront effacées.' : 'Tes pièces, photos, tenues et ton historique seront supprimés. Impossible d’annuler.'}</div>` : ''}
   </main>`;
 }
 
@@ -314,20 +385,19 @@ function viewCat(cat) {
   const n = list.length;
   return `${demoBanner()}<main class="screen">
     <header class="cat-head">
-      <a class="icon-btn" href="#/" aria-label="Retour à ma tenue">${ico('back', 20, 2)}</a>
+      <a class="icon-btn" href="#/garde-robe" aria-label="Retour à la garde-robe">${ico('back', 20, 2)}</a>
       <div class="t"><h1 class="h-font">${C.title}</h1><span class="sub">${n} ${n > 1 ? 'pièces' : 'pièce'}${n !== all.length ? ' sur ' + all.length : ''}</span></div>
       <button class="pill" data-act="sort" aria-label="Changer le tri">${ico('sort', 16, 2)}${sortLabels[f.sort]}</button>
     </header>
     <div class="chips noscroll" role="group" aria-label="Type">${typeChips}</div>
     ${C.fits.length ? `<div class="seg" role="group" aria-label="${C.fitWord}">${['Toutes', ...C.fits].map((v) => `<button aria-pressed="${f.fit === v}" data-act="fFit" data-v="${esc(v)}">${esc(v)}</button>`).join('')}</div>` : ''}
     ${colors.length > 1 ? `<div class="swatches" role="group" aria-label="Couleur"><span class="label">Couleur</span>${colors.map((d) => `<button class="swatch" style="background:${col(d.color_hex)}" aria-label="Filtrer : ${esc(d.color_name)}" aria-pressed="${f.color === d.color_hex}" data-act="fColor" data-v="${esc(d.color_hex)}"></button>`).join('')}</div>` : ''}
-    ${!all.length ? `<div class="empty"><b>Rien ici pour l’instant</b>Importe ${C.one} avec une photo recto et verso.</div>`
+    ${!all.length ? `<div class="empty"><b>Rien ici pour l’instant</b>Importe ${C.one} avec une photo recto et verso.<button class="btn accent" style="height:44px" data-act="openImport" data-cat="${cat}">${ico('plus', 18, 2)}Importer ${C.one}</button></div>`
       : !n ? `<div class="empty"><b>${C.empty}</b>Change de filtre.<button class="btn ghost" style="height:40px" data-act="resetFilters">Effacer les filtres</button></div>`
       : `<div class="grid">${list.map((it) => `<button class="tile" data-act="open" data-id="${it.id}" aria-label="Voir ${esc(it.name)}">
           <div class="img">${tileVisual(it)}<span class="badge">${esc(it.type)}</span>${it.favorite ? `<span class="fav-badge" aria-label="Favori">${ico('heart', 14, 2, 'currentColor')}</span>` : ''}</div>
           <div class="meta"><b>${esc(it.name)}</b><div class="row"><span class="dot" style="width:12px;height:12px;background:${col(it.color_hex)}"></span><span class="grow">${esc(it.color_name || '')}</span>${it.fit ? `<span class="tag" style="font-size:11px;color:var(--fg)">${esc(it.fit)}</span>` : ''}</div></div>
         </button>`).join('')}</div>`}
-    <button class="btn dark fab" data-act="openImport" data-cat="${cat}">${ico('plus', 20, 2)}Importer ${C.one}</button>
   </main>`;
 }
 
@@ -371,7 +441,7 @@ function viewDetail() {
     </div>
     <div class="actions">
       <button class="btn accent" data-act="tryOn" data-id="${it.id}">${ico('avatar', 18, 1.8)}${it.category === 'accessoire' ? 'Ajouter à la tenue' : 'Mettre sur l’avatar'}</button>
-      <button class="btn ghost" style="padding:0;color:${confirming ? 'var(--on-accent)' : 'var(--danger)'};background:${confirming ? 'var(--danger)' : ''}" data-act="delete" data-id="${it.id}" aria-label="${confirming ? 'Confirmer la suppression' : 'Supprimer la pièce'}" ${S.busy ? 'disabled' : ''}>${ico(confirming ? 'check' : 'trash', 20, 1.8)}</button>
+      <button class="btn ghost" style="padding:0;color:${confirming ? '#fff' : 'var(--danger)'};background:${confirming ? 'var(--danger)' : ''}" data-act="delete" data-id="${it.id}" aria-label="${confirming ? 'Confirmer la suppression' : 'Supprimer la pièce'}" ${S.busy ? 'disabled' : ''}>${ico(confirming ? 'check' : 'trash', 20, 1.8)}</button>
     </div>
     ${confirming ? '<div class="hint" style="color:var(--danger)">Touche encore pour supprimer définitivement</div>' : ''}
   </div></div>`;
@@ -429,10 +499,6 @@ function viewAvatar() {
       ${sw('Couleur de peau', 'skin')}${sw('Couleur des cheveux', 'hair')}${sw('Couleur des yeux', 'eye')}
       ${ch('Coiffure', 'hairStyle')}${ch('Forme des yeux', 'eyeShape')}${ch('Taille des yeux', 'eyeSize')}${ch('Barbe', 'beard')}${ch('Morphologie', 'build')}
       <button class="btn accent" data-act="saveAvatar" ${S.busy ? 'disabled' : ''}>Valider</button>
-      <button class="btn ghost" data-act="signOut" ${S.busy ? 'disabled' : ''} style="${S.confirmSignOut ? 'color:var(--on-accent);background:var(--danger)' : ''}">${S.confirmSignOut ? 'Se déconnecter quand même' : 'Se déconnecter' + (S.user?.email ? ' (' + esc(S.user.email) + ')' : '')}</button>
-      ${S.confirmSignOut ? `<div class="hint" style="color:var(--danger)">${S.net.pending + S.net.conflicts} modification(s) pas encore envoyée(s) seront perdues.</div>` : ''}
-      <button class="btn ghost" data-act="deleteAccount" style="color:${S.confirmAccount ? 'var(--on-accent)' : 'var(--danger)'};background:${S.confirmAccount ? 'var(--danger)' : ''}" ${S.busy ? 'disabled' : ''}>${S.confirmAccount ? 'Confirmer : tout supprimer définitivement' : isDemo ? 'Réinitialiser la démo' : 'Supprimer mon compte et mes données'}</button>
-      ${S.confirmAccount ? `<div class="hint" style="color:var(--danger)">${isDemo ? 'Toutes les données de démo seront effacées.' : 'Tes pièces, photos, tenues et ton historique seront supprimés. Impossible d’annuler.'}</div>` : ''}
     </div>
   </div></div>`;
 }
@@ -465,7 +531,6 @@ function viewHistory() {
   const outfits = S.outfits.slice().sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0));
   return `${demoBanner()}<main class="screen">
     <header class="cat-head">
-      <a class="icon-btn" href="#/" aria-label="Retour à ma tenue">${ico('back', 20, 2)}</a>
       <div class="t"><h1 class="h-font">Historique</h1><span class="sub">${S.wears.length} jour${S.wears.length > 1 ? 's' : ''} noté${S.wears.length > 1 ? 's' : ''} · ${S.outfits.length} tenue${S.outfits.length > 1 ? 's' : ''}</span></div>
     </header>
     <h2 class="label" style="margin:8px 4px 0;text-transform:uppercase;letter-spacing:.08em">Tenues enregistrées</h2>
@@ -475,12 +540,12 @@ function viewHistory() {
           <button data-act="useOutfit" data-id="${o.id}">Mettre</button>
           <button data-act="delOutfit" data-id="${o.id}" style="color:var(--danger)">${S.confirmDelete === o.id ? 'Confirmer' : 'Supprimer'}</button></span></div>
         <div class="mini-row">${minis(outfitIds(o))}</div></div>`).join('')
-      : '<div class="note" style="padding:0 4px">Compose une tenue sur l’accueil puis touche « Enregistrer ».</div>'}</div>
+      : '<div class="note" style="padding:0 4px">Compose une tenue dans l’onglet Tenue puis touche le marque-page pour l’enregistrer.</div>'}</div>
     <h2 class="label" style="margin:8px 4px 0;text-transform:uppercase;letter-spacing:.08em">Ce que j’ai porté</h2>
     <div class="list">${S.wears.length ? S.wears.map((w) => `<div class="hist">
         <div class="when"><span>${esc(dayLabel(w.worn_on))}</span><button data-act="delWear" data-id="${w.id}" style="color:var(--muted)">Retirer</button></div>
         <div class="mini-row">${minis(outfitIds(w))}</div></div>`).join('')
-      : '<div class="note" style="padding:0 4px">Touche « Je la porte aujourd’hui » sur l’accueil pour garder une trace.</div>'}</div>
+      : '<div class="note" style="padding:0 4px">Touche « Je la porte aujourd’hui » dans l’onglet Tenue pour garder une trace.</div>'}</div>
   </main>`;
 }
 
@@ -516,7 +581,12 @@ const actions = {
   step(el) { step(el.dataset.cat, Number(el.dataset.d)); },
   suggest,
   theme() { applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); render(); },
-  friends() { toast('Amis et partage : arrivent dans une prochaine version'); },
+  openPick(el) { S.sheet = { kind: 'pick', cat: el.dataset.cat }; render(); },
+  pick(el) {
+    S.sel[el.dataset.cat] = el.dataset.id || null; S.note = 'Choix manuel';
+    closeSheet(); ensureSelection(); render();
+  },
+  pickBrowse(el) { closeSheet(); location.hash = '#/c/' + el.dataset.cat; },
   unselect(el) { S.sel[el.dataset.cat] = null; ensureSelection(); render(); },
   async saveOutfit() {
     if (!S.sel.haut || !S.sel.bas) return toast('Il faut au moins un haut et un bas', 'err');

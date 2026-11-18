@@ -86,12 +86,13 @@ supabase/schema.sql     base de données + sécurité + stockage
 
 ## Ce que fait la V1
 - Comptes (e-mail + mot de passe), données synchronisées entre appareils.
-- Accueil : silhouette habillée (couleur + coupe de chaque pièce), flèches pour changer haut / bas / chaussures.
+- Navigation par onglets en bas : Tenue · Garde-robe · + (importer) · Historique · Profil. Style streetwear, clair/sombre.
+- Tenue (accueil) : silhouette habillée, flèches haut / bas / chaussures, 5 emplacements (haut, veste, bas, chaussures, accessoire) : on touche un emplacement pour choisir la pièce, dont la veste.
 - Suggestion de tenue : couleurs qui s'accordent + proportions (ample avec ajusté), en évitant ce qui a été porté récemment.
 - Import d'une pièce : photos recto/verso (appareil photo ou galerie, compressées automatiquement), nom, catégorie, type, couleur, coupe.
-- 4 écrans Hauts / Bas / Chaussures / Accessoires : filtres type, coupe, couleur, tri ; fiche avec carte qui pivote recto/verso ; modifier, supprimer, mettre sur l'avatar.
+- Garde-robe : vue d'ensemble des catégories, puis écrans Hauts / Bas / Vestes / Chaussures / Accessoires : filtres type, coupe, couleur, tri ; fiche avec carte qui pivote recto/verso ; modifier, supprimer, mettre sur l'avatar.
 - Tenues enregistrées et historique « porté aujourd'hui ».
-- Éditeur d'avatar (peau, cheveux, yeux, barbe, morphologie), mode clair/sombre.
+- Profil : avatar (peau, cheveux, yeux, barbe, morphologie), mode sombre, synchronisation, déconnexion, suppression du compte.
 
 ## Prévu en V2
 - Amis : partage au choix de sa garde-robe et de ses tenues (colonne `is_shared` déjà prévue).
