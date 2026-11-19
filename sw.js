@@ -4,7 +4,7 @@
 // - Photos (liens signés Supabase) : cache d'abord, indexées sans le jeton du lien,
 //   pour rester visibles hors connexion même quand le lien a expiré. Cache vidé à la déconnexion.
 // - Les données (API Supabase) ne passent jamais par ce cache : elles sont gérées par l'app.
-const VERSION = 'garderobe-v21';
+const VERSION = 'garderobe-v22';
 const SHELL = VERSION + '-app';
 const LIBS = 'garderobe-libs-v1';
 const PHOTOS = 'garderobe-photos';
@@ -23,7 +23,7 @@ self.addEventListener('message', (e) => {
   if (e.data === 'clear-photos') e.waitUntil(caches.delete(PHOTOS));
 });
 
-const isLib = (u) => u.hostname === 'esm.sh' || u.hostname === 'cdn.jsdelivr.net' || u.hostname === 'fonts.googleapis.com' || u.hostname === 'fonts.gstatic.com';
+const isLib = (u) => u.hostname === 'esm.sh' || u.hostname === 'cdn.jsdelivr.net' || u.hostname === 'staticimgly.com' || u.hostname === 'fonts.googleapis.com' || u.hostname === 'fonts.gstatic.com';
 const isPhoto = (u) => u.hostname.endsWith('.supabase.co') && u.pathname.startsWith('/storage/v1/object/sign/photos/');
 
 async function cacheFirst(req, cacheName, key) {
