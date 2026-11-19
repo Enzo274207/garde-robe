@@ -53,6 +53,9 @@ const S = {
 };
 const app = document.getElementById('app');
 const byCat = (c) => S.items.filter((i) => i.category === c);
+// Ce qu'on peut mettre par-dessus le haut : les vestes, puis les autres hauts
+// (chemise ouverte, sweat zippé, veste rangée dans les hauts…). Enregistré dans jacket_id, comme avant.
+const layerList = () => [...byCat('veste'), ...byCat('haut').filter((i) => i.id !== S.sel.haut)];
 const item = (id) => S.items.find((i) => i.id === id) || null;
 
 /* ---------------- thème ---------------- */
@@ -93,7 +96,8 @@ function ensureSelection() {
     const list = byCat(c);
     if (!list.find((i) => i.id === S.sel[c])) S.sel[c] = list[0]?.id || null;
   }
-  if (S.sel.veste && item(S.sel.veste)?.category !== 'veste') S.sel.veste = null;
+  const over = item(S.sel.veste);
+  if (S.sel.veste && !(over?.category === 'veste' || (over?.category === 'haut' && over.id !== S.sel.haut))) S.sel.veste = null;
   // Accessoires : toujours une liste (l'ancienne sélection enregistrée n'en avait qu'un)
   const acc = Array.isArray(S.sel.accessoire) ? S.sel.accessoire : [S.sel.accessoire];
   S.sel.accessoire = [...new Set(acc)].filter((id) => item(id)?.category === 'accessoire').slice(0, MAX_ACC);
@@ -101,7 +105,9 @@ function ensureSelection() {
 }
 function step(cat, d) {
   if (cat === 'accessoire') return;
-  const list = byCat(cat); if (!list.length) return;
+  // le haut qui passe par-dessus n'est pas proposé dessous (et inversement)
+  const list = cat === 'veste' ? layerList() : cat === 'haut' ? byCat('haut').filter((x) => x.id !== S.sel.veste) : byCat(cat);
+  if (!list.length) return;
   const i = Math.max(0, list.findIndex((x) => x.id === S.sel[cat]));
   S.sel[cat] = list[(i + d + list.length) % list.length].id;
   S.note = 'Choix manuel'; ensureSelection(); render();
@@ -274,15 +280,17 @@ function accSlotBtn(label) {
 }
 
 /* ---------------- composition à plat (façon lookbook) ---------------- */
-// Positions en % de la zone : haut en haut à gauche, veste qui chevauche à droite,
-// bas en dessous, accessoire et chaussures sur la droite. Sans veste, l'accessoire remonte.
+// Positions en % de la zone (x, y, largeur, hauteur, rotation), dans l'ordre d'empilement :
+// colonne de gauche = haut, bas, puis chaussures sous le pantalon ; à droite, la veste (ou le haut
+// mis par-dessus) qui chevauche le haut, et les accessoires dessous. Sans veste, les accessoires remontent.
 // Les accessoires se rangent dans une zone libre, chacun à sa taille réelle (une bague reste petite).
 const LOOK = {
-  withJacket: { haut: [4, 4, 44, 36, 0], veste: [46, 3, 50, 50, 0], bas: [10, 38, 36, 59, 0], accessoire: [49, 54, 49, 20], chaussures: [50, 74, 46, 22, 0] },
-  noJacket: { haut: [6, 4, 50, 40, 0], accessoire: [58, 9, 40, 52], bas: [14, 40, 38, 57, 0], chaussures: [52, 64, 44, 26, 0] }
+  withJacket: { bas: [8, 33, 38, 48, 0], chaussures: [6, 79, 42, 19, 0], haut: [4, 3, 44, 32, 0], veste: [47, 3, 50, 46, 0], accessoire: [50, 52, 47, 44] },
+  noJacket: { bas: [10, 35, 38, 46, 0], chaussures: [8, 79, 42, 19, 0], haut: [5, 3, 48, 35, 0], accessoire: [55, 8, 42, 86] },
+  alone: { bas: [30, 35, 40, 46, 0], chaussures: [28, 79, 44, 19, 0], haut: [24, 3, 52, 35, 0] }   // rien à droite : colonne centrée
 };
 // Place approximative de la zone (en carrés de 1 % de la largeur de la planche), pour réduire si elle déborde
-const ACC_ROOM = { withJacket: 1500, noJacket: 3200 };
+const ACC_ROOM = { withJacket: 2200, noJacket: 3800 };
 const LOOK_LABEL = { haut: 'Haut', veste: 'Veste', bas: 'Bas', chaussures: 'Chaussures', accessoire: 'Accessoire' };
 function lookAccessories([x, y, w, h], room) {
   const list = S.sel.accessoire.map(item).filter(Boolean); if (!list.length) return '';
@@ -301,7 +309,7 @@ function lookAccessories([x, y, w, h], room) {
 }
 function lookBoard() {
   const jacket = !!(S.sel.veste && item(S.sel.veste));
-  const L = jacket ? LOOK.withJacket : LOOK.noJacket;
+  const L = jacket ? LOOK.withJacket : S.sel.accessoire.some(item) ? LOOK.noJacket : LOOK.alone;
   const pieces = Object.entries(L).map(([cat, [x, y, w, h, rot]]) => {
     if (cat === 'accessoire') return lookAccessories([x, y, w, h], ACC_ROOM[jacket ? 'withJacket' : 'noJacket']);
     const it = item(S.sel[cat]); if (!it) return '';
@@ -400,10 +408,14 @@ function styCompose() {
 /* ---------------- choix d'une pièce depuis l'accueil ---------------- */
 function viewPick() {
   if (S.sheet.cat === 'accessoire') return viewPickAcc();
-  const cat = S.sheet.cat, C = CATEGORIES[cat], list = byCat(cat), cur = S.sel[cat];
+  const cat = S.sheet.cat, C = CATEGORIES[cat], cur = S.sel[cat];
+  // Veste : on peut aussi mettre un autre haut par-dessus (t-shirt + chemise, sweat zippé…)
+  const list = cat === 'veste' ? layerList() : byCat(cat), extra = cat === 'veste' ? list.filter((i) => i.category === 'haut') : [];
   const check = `<span class="pick-check" aria-hidden="true">${ico('check', 15, 2.6)}</span>`;
   const none = OPTIONAL.has(cat) ? `<button class="pick ${!cur ? 'on' : ''}" data-act="pick" data-cat="${cat}" data-id="" aria-pressed="${!cur}"><span class="pick-img none">${ico('close', 26, 1.8)}</span><b>${cat === 'veste' ? 'Sans veste' : 'Aucun'}</b><small>Retirer de la tenue</small>${!cur ? check : ''}</button>` : '';
-  const tiles = list.map((it) => `<button class="pick ${cur === it.id ? 'on' : ''}" data-act="pick" data-cat="${cat}" data-id="${it.id}" aria-pressed="${cur === it.id}"><span class="pick-img">${tileVisual(it)}</span><b>${esc(it.name)}</b><small>${esc([it.type, it.color_name].filter(Boolean).join(' · '))}</small>${cur === it.id ? check : ''}</button>`).join('');
+  const tile = (it) => `<button class="pick ${cur === it.id ? 'on' : ''}" data-act="pick" data-cat="${cat}" data-id="${it.id}" aria-pressed="${cur === it.id}"><span class="pick-img">${tileVisual(it)}</span><b>${esc(it.name)}</b><small>${esc([it.type, it.color_name].filter(Boolean).join(' · '))}</small>${cur === it.id ? check : ''}</button>`;
+  const main = list.filter((i) => !extra.includes(i));
+  const tiles = main.map(tile).join('') + (extra.length ? `<h3 class="pick-sep">Ou un haut par-dessus</h3>${extra.map(tile).join('')}` : '');
   return `<div class="overlay" data-act="closeSheetBg"><div class="sheet" role="dialog" aria-modal="true" aria-label="Choisir : ${C.title}">
     <span class="grab"></span>
     <div class="sheet-head"><div><span class="kicker sheet-kicker">Choisir · ${list.length} pièce${list.length > 1 ? 's' : ''}</span><h2 class="h-font">${C.title}</h2></div><button class="icon-btn" data-act="closeSheet" aria-label="Fermer">${ico('close', 18, 2)}</button></div>
@@ -954,7 +966,7 @@ app.addEventListener('pointerdown', (ev) => {
 app.addEventListener('pointerup', (ev) => {
   if (!swipe) return;
   const dx = ev.clientX - swipe.x, dy = ev.clientY - swipe.y, cat = swipe.cat; swipe = null;
-  if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5 && byCat(cat).length > 1) { swallowUntil = ev.timeStamp + 80; step(cat, dx < 0 ? 1 : -1); }
+  if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5 && (cat === 'veste' ? layerList() : byCat(cat)).length > 1) { swallowUntil = ev.timeStamp + 80; step(cat, dx < 0 ? 1 : -1); }
 });
 app.addEventListener('click', (ev) => {
   if (ev.timeStamp < swallowUntil) { ev.preventDefault(); return; }

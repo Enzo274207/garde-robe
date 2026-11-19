@@ -177,16 +177,24 @@ function pickTop(list, score, n = 3) {
   return ranked[0][0];
 }
 
+// Types de hauts : ce qui se porte forcément par-dessus, ce qui peut s'ouvrir sur un t-shirt, et ce qui va dessous
+const OVER_ONLY = /veste|blouson|manteau|doudoune|coupe-vent/i;
+const OVER_OK = /chemise|sweat|surchemise|gilet|cardigan/i;
+const UNDER = /t-shirt|tee|débardeur|polo/i;
+
 /**
  * items : toutes les pièces ; wears : historique (plus récent d'abord)
  * ctx : { weather: 'froid'|'doux'|'chaud', vibe: 'cool'|'normal'|'habille' }
  * seen : combinaisons haut+bas déjà proposées (pour ne pas repasser la même)
  * Renvoie { sel, lines } ou null s'il manque un haut ou un bas.
+ * sel.veste peut être une veste ou un haut porté par-dessus (enregistré dans jacket_id).
  */
 export function composeOutfit(items, wears, ctx, seen = new Set()) {
   const by = (c) => items.filter((i) => i.category === c);
-  const T = by('haut'), B = by('bas'), V = by('veste'), C = by('chaussures'), A = by('accessoire');
-  if (!T.length || !B.length) return null;
+  const H = by('haut'), B = by('bas'), V = by('veste'), C = by('chaussures'), A = by('accessoire');
+  if (!H.length || !B.length) return null;
+  // Une veste rangée dans les hauts se porte par-dessus, pas seule : on garde les autres hauts pour dessous
+  const T = H.filter((i) => !OVER_ONLY.test(i.type || '')).length ? H.filter((i) => !OVER_ONLY.test(i.type || '')) : H;
   const maxWear = Math.max(1, ...items.map((i) => i.wear_count || 0));
   const c = {
     ...ctx,
@@ -203,7 +211,9 @@ export function composeOutfit(items, wears, ctx, seen = new Set()) {
 
   let jacket = null;
   const wantJacket = ctx.weather === 'froid' || (ctx.weather === 'doux' && (ctx.vibe === 'habille' || Math.random() < 0.5));
-  if (V.length && wantJacket) jacket = pickTop(V, (v) => fitScore(v, c) + pairScore(v, top) * 0.6 + pairScore(v, bottom) * 0.6);
+  // Par-dessus : une veste, ou un haut qui s'ouvre (veste, chemise, sweat) sur un t-shirt
+  const over = [...V, ...H.filter((h) => h !== top && (OVER_ONLY.test(h.type || '') || (UNDER.test(top.type || '') && OVER_OK.test(h.type || ''))))];
+  if (over.length && wantJacket) jacket = pickTop(over, (v) => fitScore(v, c) + pairScore(v, top) * 0.6 + pairScore(v, bottom) * 0.6);
   const shoes = C.length ? pickTop(C, (s) => fitScore(s, c) + pairScore(s, bottom) * 0.8) : null;
   const acc = pickAccessories(A, c, top);
 
@@ -240,6 +250,7 @@ function explain(ctx, top, bottom, jacket, items) {
   else if (nt && !nb) out.push(`Ton bas ${(bottom.color_name || '').toLowerCase()} apporte la touche de couleur.`);
   else if (nt && nb) out.push('Des couleurs neutres : impossible de se tromper.');
   if (jacket && ctx.weather === 'froid') out.push(`Et ${jacket.name.toLowerCase()} par-dessus, il fait froid !`);
+  else if (jacket?.category === 'haut') out.push(`Et ${jacket.name.toLowerCase()} ouvert par-dessus : on superpose !`);
   else if (!jacket && ctx.weather === 'chaud') out.push('Pas de veste, il fait chaud.');
   const sleepy = [top, bottom, jacket].filter(Boolean).find((i) => !i.wear_count && items.length > 4);
   if (sleepy) out.push(`On ressort ${sleepy.name.toLowerCase()}, jamais porté·e jusqu’ici.`);

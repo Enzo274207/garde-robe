@@ -210,6 +210,7 @@ h1.h-font { margin: 0; font-size: clamp(30px, 9vw, 38px); line-height: .92; lett
 /* ---------- choix d'une pièce ---------- */
 .sheet-kicker { display: block; margin-bottom: 4px; }
 .pick-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+.pick-sep { grid-column: 1 / -1; margin: 8px 2px -2px; font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .pick {
   position: relative; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 0 0 8px; overflow: hidden;
   border-radius: var(--r); border: 1px solid var(--line); background: var(--surface); color: var(--fg); text-align: left;
