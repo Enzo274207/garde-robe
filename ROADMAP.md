@@ -8,8 +8,8 @@ Plan validé par Enzo, d'après le brief « Évolution complète de Garde-robe �
 | 2 | Fiches enrichies (vestes, saisons, style, matière, chaleur, formalité, marque, taille, favoris, nombre de ports, migration 002) | ✅ fait |
 | 3 | Mode hors connexion (copie locale, file d'envoi, conflits sans écrasement, service worker, migration 003) | ✅ fait |
 | 4 | Refonte de l'interface style streetwear : navigation en bas de l'écran (onglets), accueil repensé, choix de la veste depuis l'accueil | ✅ fait |
-| **5** | **Styliste / suggestions avancées** (règles locales, pas d'IA externe pour l'instant) | ⏳ **prochaine** |
-| — | Icône PNG pour l'écran d'accueil iPhone (apple-touch-icon) | ⏳ |
+| 5 | Styliste : onglet « Styliste » avec Christina Cordula en pixel art, questions dans une bulle (météo, genre de tenue), tenue composée sur l'appareil (couleurs, proportions, saison, chaleur, formalité, pièces peu portées). Remplace le bouton « Suggestion » | ✅ fait |
+| — | Icône PNG pour l'écran d'accueil iPhone (apple-touch-icon) | ✅ fait |
 | — | Détourage automatique des photos à l'import (sur l'appareil) | ✅ fait |
 | plus tard | Amis et partage, calendrier des tenues | idées |
 

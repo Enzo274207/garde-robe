@@ -5,6 +5,7 @@ import { cutout, isCutPath } from './cutout.js';
 import { demo, online, isDemo, today } from './store.js';
 import { createSync } from './sync.js';
 import { compressImage } from './image.js';
+import { STYLIST_NAME, stylistSprite, stylistIcon, stylistScene, composeOutfit, WEATHER, VIBE } from './stylist.js';
 
 /* ---------------- icônes ---------------- */
 const P = {
@@ -100,22 +101,6 @@ function step(cat, d) {
   S.sel[cat] = list[(i + d + list.length) % list.length].id;
   S.note = 'Choix manuel'; ensureSelection(); render();
 }
-function suggest() {
-  const T = byCat('haut'), B = byCat('bas'), C = byCat('chaussures');
-  if (!T.length || !B.length) return toast('Ajoute au moins un haut et un bas', 'err');
-  let top = T[Math.floor(Math.random() * T.length)];
-  if (T.length > 1 && top.id === S.sel.haut) top = T[(T.indexOf(top) + 1) % T.length];
-  const want = top.fit === 'Ample' ? ['Ajusté'] : top.fit === 'Ajusté' ? ['Regular', 'Ample'] : ['Ajusté', 'Regular'];
-  const recent = new Set(S.wears.slice(0, 3).flatMap((w) => [w.top_id, w.bottom_id]));
-  const score = (b) => (want.includes(b.fit) ? 2 : 0) + (isNeutral(top.color_hex) || isNeutral(b.color_hex) ? 2 : 0) + (b.color_hex !== top.color_hex ? 1 : 0) - (recent.has(b.id) ? 1 : 0) + Math.random();
-  const bottom = B.slice().sort((a, b) => score(b) - score(a))[0];
-  const shoes = C.length ? C[Math.floor(Math.random() * C.length)] : null;
-  S.sel.haut = top.id; S.sel.bas = bottom.id; if (shoes) S.sel.chaussures = shoes.id;
-  S.note = top.fit === 'Ample' && bottom.fit === 'Ajusté' ? 'Haut ample + bas ajusté'
-    : !isNeutral(top.color_hex) ? 'Couleur forte + bas neutre' : 'Proportions équilibrées';
-  ensureSelection(); render();
-}
-
 /* ---------------- chargement ---------------- */
 async function loadAll() {
   const [profile, items, outfits, wears] = await Promise.all([store.profile(), store.items(), store.outfits(), store.wears()]);
@@ -177,6 +162,7 @@ function route() {
   } else if (a === 'historique') S.route = { name: 'history' };
   else if (a === 'garde-robe') S.route = { name: 'wardrobe' };
   else if (a === 'profil') S.route = { name: 'profile' };
+  else if (a === 'styliste') { if (S.route.name !== 'stylist') S.sty = { step: 'hello', seen: new Set(), typed: '' }; S.route = { name: 'stylist' }; }
   else S.route = { name: 'home' };
   S.detail = null; S.confirmAccount = false; S.confirmSignOut = false;
 }
@@ -195,6 +181,7 @@ function render() {
   else if (S.route.name === 'history') html = viewHistory();
   else if (S.route.name === 'wardrobe') html = viewWardrobe();
   else if (S.route.name === 'profile') html = viewProfile();
+  else if (S.route.name === 'stylist') html = viewStylist();
   else html = viewHome();
   if (S.ready && S.user && !S.loadErr) html += tabBar();
   if (S.user && !S.loadErr && S.detail) html += viewDetail();
@@ -207,6 +194,7 @@ function render() {
   const nb = document.querySelector('.sheet-body'); if (nb) nb.scrollTop = keep;
   if (focusId) document.getElementById(focusId)?.focus();
   document.body.style.overflow = S.sheet || S.detail ? 'hidden' : '';
+  if (S.route.name === 'stylist') typeBubble();
 }
 
 const demoBanner = () => isDemo ? `<div class="banner"><span>Mode démo : tes données restent sur cet appareil.</span></div>` : netBanner();
@@ -251,11 +239,11 @@ function viewAuth() {
 /* ---------------- barre d'onglets ---------------- */
 function tabBar() {
   const r = S.route.name, cur = r === 'cat' ? 'wardrobe' : r;
-  const tab = (key, href, icon, label) => `<a class="tab" href="${href}" ${cur === key ? 'aria-current="page"' : ''}>${ico(icon, 22, 1.9)}<span>${label}</span></a>`;
+  const tab = (key, href, icon, label) => `<a class="tab" href="${href}" ${cur === key ? 'aria-current="page"' : ''}>${icon === 'stylist' ? stylistIcon(22) : ico(icon, 22, 1.9)}<span>${label}</span></a>`;
   return `<nav class="tabbar" aria-label="Navigation principale">
     ${tab('home', '#/', 'haut', 'Tenue')}${tab('wardrobe', '#/garde-robe', 'hanger', 'Garde-robe')}
     <button class="tab add" data-act="openImport" aria-label="Importer une pièce"><span>${ico('plus', 26, 2.4)}</span></button>
-    ${tab('history', '#/historique', 'hist', 'Historique')}${tab('profile', '#/profil', 'avatar', 'Profil')}
+    ${tab('history', '#/historique', 'hist', 'Historique')}${tab('stylist', '#/styliste', 'stylist', 'Styliste')}${tab('profile', '#/profil', 'avatar', 'Profil')}
   </nav>`;
 }
 
@@ -306,11 +294,72 @@ function viewHome() {
     ${!S.items.length ? '<div class="info">Ta garde-robe est vide : touche <b>+</b> en bas pour importer ta première pièce.</div>' : ''}
     <section class="slots" aria-label="Tenue en cours">${SLOTS.map(([c, l]) => slotBtn(c, l)).join('')}</section>
     <div class="home-actions">
-      <button class="btn accent" data-act="suggest">${ico('spark', 20, 1.9)}Suggestion</button>
       <button class="btn dark" data-act="wear" aria-label="${isWorn ? 'Tenue notée comme portée aujourd’hui' : 'Je la porte aujourd’hui'}" ${!top || !bottom || S.busy ? 'disabled' : ''}>${isWorn ? ico('check', 18, 2.2) + 'Portée' : 'Je la porte'}</button>
       <button class="btn ghost sq" data-act="saveOutfit" aria-label="Enregistrer la tenue" title="Enregistrer la tenue" ${S.busy ? 'disabled' : ''}>${ico('save', 20, 1.9)}</button>
     </div>
   </main>`;
+}
+
+/* ---------------- styliste ---------------- */
+const STY_ASK = {
+  hello: `Salut ! Moi c’est ${STYLIST_NAME}, ta styliste. Je te compose une tenue avec tes propres pièces ?`,
+  weather: 'Dis-moi, il fait comment dehors aujourd’hui ?',
+  vibe: 'Et tu veux une tenue de quel genre ?',
+  empty: 'Il me faut au moins un haut et un bas dans ta garde-robe pour travailler !'
+};
+function stylistText() { const t = S.sty; return t.step === 'result' ? t.line : STY_ASK[t.step]; }
+function viewStylist() {
+  const t = S.sty || (S.sty = { step: 'hello', seen: new Set(), typed: '' });
+  const text = stylistText();
+  const opt = (act, v, label) => `<button class="sty-opt" data-act="${act}" data-v="${v}">${label}</button>`;
+  let menu = '';
+  if (t.step === 'hello') menu = opt('styGo', '', 'C’est parti !');
+  else if (t.step === 'weather') menu = Object.entries(WEATHER).map(([k, l]) => opt('styWeather', k, l)).join('');
+  else if (t.step === 'vibe') menu = Object.entries(VIBE).map(([k, l]) => opt('styVibe', k, l)).join('');
+  else if (t.step === 'empty') menu = opt('openImport', '', 'Importer une pièce');
+  const wornToday = S.wears.find((w) => w.worn_on === today());
+  const isWorn = t.step === 'result' && wornToday && wornToday.top_id === S.sel.haut && wornToday.bottom_id === S.sel.bas && wornToday.shoes_id === S.sel.chaussures && (wornToday.jacket_id || null) === (S.sel.veste || null);
+  return `${demoBanner()}<main class="screen sty">
+    <section class="sty-stage ${t.step === 'result' ? 'small' : ''}" aria-label="${esc(STYLIST_NAME)}">
+      ${stylistScene()}
+      <div class="sty-bubble" data-act="stySkip" aria-live="polite">
+        <span class="sty-name">${esc(STYLIST_NAME)}</span>
+        <p class="sty-text" data-type="${esc(text)}">${t.typed === text ? esc(text) : ''}</p>
+        <span class="sty-more" aria-hidden="true">▼</span>
+      </div>
+      ${stylistSprite('sty-char')}
+    </section>
+    ${t.step === 'result' ? `<div class="stage2 look sty-look" aria-label="Tenue proposée">${lookBoard()}</div>
+    <div class="sty-menu result">
+      <button class="sty-opt" data-act="styAgain">Une autre</button>
+      <button class="sty-opt" data-act="wear" ${!S.sel.haut || !S.sel.bas || S.busy ? 'disabled' : ''}>${isWorn ? 'Portée ✓' : 'Je la porte'}</button>
+      <button class="sty-opt" data-act="saveOutfit" ${S.busy ? 'disabled' : ''}>Enregistrer</button>
+      <button class="sty-opt" data-act="styRestart">Recommencer</button>
+    </div>` : `<div class="sty-menu">${menu}</div>`}
+  </main>`;
+}
+// Texte qui s'écrit lettre par lettre, façon jeu rétro (touche la bulle pour tout afficher)
+let typeTimer;
+function typeBubble() {
+  clearInterval(typeTimer);
+  const el = document.querySelector('.sty-text[data-type]'); if (!el || !S.sty) return;
+  const full = el.dataset.type;
+  if (S.sty.typed === full) return;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { S.sty.typed = full; el.textContent = full; return; }
+  let i = 0;
+  typeTimer = setInterval(() => {
+    i += 1; el.textContent = full.slice(0, i);
+    if (i >= full.length) { clearInterval(typeTimer); if (S.sty) S.sty.typed = full; }
+  }, 28);
+}
+function styCompose() {
+  const t = S.sty;
+  const res = composeOutfit(S.items, S.wears, { weather: t.weather, vibe: t.vibe }, t.seen);
+  if (!res) { t.step = 'empty'; return; }
+  Object.assign(S.sel, res.sel);
+  S.note = 'Choix de ' + STYLIST_NAME;
+  ensureSelection();
+  t.step = 'result'; t.line = res.lines;
 }
 
 /* ---------------- choix d'une pièce depuis l'accueil ---------------- */
@@ -609,7 +658,12 @@ const actions = {
   authMode() { S.authMode = S.authMode === 'login' ? 'signup' : 'login'; S.authErr = ''; S.authInfo = ''; render(); },
   async retry() { S.ready = false; await boot(); },
   step(el) { step(el.dataset.cat, Number(el.dataset.d)); },
-  suggest,
+  styGo() { const t = S.sty; t.step = byCat('haut').length && byCat('bas').length ? 'weather' : 'empty'; render(); },
+  styWeather(el) { S.sty.weather = el.dataset.v; S.sty.step = 'vibe'; render(); },
+  styVibe(el) { S.sty.vibe = el.dataset.v; styCompose(); render(); },
+  styAgain() { styCompose(); render(); },
+  styRestart() { S.sty = { step: 'weather', seen: new Set(), typed: '' }; render(); },
+  stySkip() { clearInterval(typeTimer); const el = document.querySelector('.sty-text[data-type]'); if (el && S.sty) { S.sty.typed = el.dataset.type; el.textContent = el.dataset.type; } },
   theme() { applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); render(); },
   openPick(el) { S.sheet = { kind: 'pick', cat: el.dataset.cat }; render(); },
   pick(el) {
