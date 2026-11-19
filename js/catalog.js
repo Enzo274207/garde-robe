@@ -9,8 +9,8 @@ export const CATEGORIES = {
   },
   bas: {
     key: 'bas', title: 'Bas', one: 'un bas', empty: 'Aucun bas ne correspond',
-    types: ['Jean', 'Pantalon', 'Chino', 'Jogging', 'Cargo'],
-    plural: { Jean: 'Jeans', Pantalon: 'Pantalons', Chino: 'Chinos', Jogging: 'Joggings', Cargo: 'Cargos' },
+    types: ['Jean', 'Pantalon', 'Chino', 'Jogging', 'Cargo', 'Short'],
+    plural: { Jean: 'Jeans', Pantalon: 'Pantalons', Chino: 'Chinos', Jogging: 'Joggings', Cargo: 'Cargos', Short: 'Shorts' },
     fits: ['Ajusté', 'Regular', 'Ample'], fitWord: 'Coupe'
   },
   chaussures: {
@@ -32,6 +32,9 @@ export const CATEGORIES = {
     fits: [], fitWord: ''
   }
 };
+// Un bas court (short, bermuda) : dessiné plus court, les chaussures ne passent pas dessous,
+// et la styliste le garde pour quand il fait chaud.
+export const isShort = (it) => !!it && it.category === 'bas' && /short|bermuda/i.test(it.type || '');
 export const CAT_ORDER = ['haut', 'bas', 'veste', 'chaussures', 'accessoire'];
 // Taille d'un accessoire sur la planche de la tenue (en % de la largeur) : les bijoux restent petits.
 // Un type inconnu (ancienne pièce) prend une taille moyenne.
@@ -110,6 +113,7 @@ export const DEMO_ITEMS = [
   { category: 'bas', type: 'Pantalon', name: 'Pantalon de costume noir', color_name: 'Noir', color_hex: '#1E1E1E', fit: 'Regular' },
   { category: 'bas', type: 'Jogging', name: 'Jogging gris', color_name: 'Gris', color_hex: '#8C8C8C', fit: 'Ample' },
   { category: 'bas', type: 'Chino', name: 'Chino beige', color_name: 'Beige', color_hex: '#CDB892', fit: 'Regular' },
+  { category: 'bas', type: 'Short', name: 'Short en lin écru', color_name: 'Écru', color_hex: '#E8E0CC', fit: 'Regular' },
   { category: 'chaussures', type: 'Baskets', name: 'Baskets blanches', color_name: 'Blanc', color_hex: '#F4F2EE', fit: 'Basses' },
   { category: 'chaussures', type: 'Ville', name: 'Derbies noires', color_name: 'Noir', color_hex: '#1E1E1E', fit: 'Basses' },
   { category: 'chaussures', type: 'Bottines', name: 'Bottines marron', color_name: 'Marron', color_hex: '#6B4A32', fit: 'Montantes' },

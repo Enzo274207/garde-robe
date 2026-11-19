@@ -1,5 +1,5 @@
 // Dessins SVG : silhouette, visage, illustrations des pièces.
-import { AV, isDark, safeColor } from './catalog.js';
+import { AV, isDark, safeColor, isShort } from './catalog.js';
 
 const f1 = (v) => (Math.round(v * 10) / 10).toString();
 const circ = (cx, cy, r) => `M${cx - r} ${cy} a${r} ${r} 0 1 0 ${2 * r} 0 a${r} ${r} 0 1 0 ${-2 * r} 0 Z`;
@@ -183,6 +183,10 @@ function garmentShapes(item) {
     if (type === 'Pantalon') { r.detail += ` M38 17 L44 30 M82 17 L76 30 M60 16 L60 36 M${(Lo + Li) / 2 + 2} 50 L${(Lo + Li) / 2} 110 M${(Ro + Ri) / 2 - 2} 50 L${(Ro + Ri) / 2} 110`; r.backDetail += ' M42 28 L54 28 M66 28 L78 28'; }
     if (type === 'Chino') { r.detail += ' M38 17 L45 30 M82 17 L75 30 M60 16 L60 37'; r.backDetail += ' M42 28 L54 28 M66 28 L78 28'; }
     if (type === 'Jogging') { r.detail = `M36 15 L84 15 M57 15 L55 28 M63 15 L65 28 M${Lo} 104 L${Li} 104 M${Ri} 104 L${Ro} 104 M40 20 Q46 26 46 34 M80 20 Q74 26 74 34`; r.backDetail = `M36 15 L84 15 M${Lo} 104 L${Li} 104 M${Ri} 104 L${Ro} 104 M66 26 L78 26 L78 38 L66 38 Z`; }
+    if (isShort(item)) {   // jambes coupées au-dessus du genou
+      r.body = r.backBody = 'M36 8 L84 8 Q87 22 88 40 L91 74 L63 74 L60 50 L57 74 L29 74 L32 40 Q33 22 36 8 Z';
+      r.detail += ' M38 17 L45 30 M82 17 L75 30 M60 16 L60 37 M30 68 L57 68 M63 68 L90 68'; r.backDetail += ' M42 28 L54 28 M66 28 L78 28 M30 68 L57 68 M63 68 L90 68';
+    }
     if (type === 'Cargo') { r.detail += ' M38 17 L45 30 M82 17 L75 30 M60 16 L60 37 M29 60 L40 60 L40 78 L28 78 Z M91 60 L80 60 L80 78 L92 78 Z'; r.backDetail += ' M42 26 L54 26 L54 38 L42 38 Z M66 26 L78 26 L78 38 L66 38 Z'; }
   } else if (cat === 'chaussures') {
     const s = SHOES[shoeKey(item)];

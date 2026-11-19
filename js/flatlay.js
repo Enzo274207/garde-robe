@@ -2,7 +2,7 @@
 // avec texture de tissu (sergé, côtes, molleton, matelassage, cuir), coutures, ombrage et ombre portée.
 // Chaque catégorie a son propre cadre (viewBox) pour que les proportions restent réalistes :
 // un jean est long et fin, une paire de chaussures est large et basse, etc.
-import { safeColor, isDark } from './catalog.js';
+import { safeColor, isDark, isShort } from './catalog.js';
 
 let uid = 0;
 const hexToRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
@@ -13,7 +13,7 @@ const lum = (hex) => { const [r, g, b] = hexToRgb(hex); return (0.299 * r + 0.58
 // Matière selon le type de pièce
 const MATERIAL = {
   'T-shirt': 'jersey', Pull: 'knit', Sweat: 'fleece', Chemise: 'poplin', Veste: 'wool',
-  Jean: 'denim', Pantalon: 'twill', Chino: 'twill', Jogging: 'fleece', Cargo: 'canvas',
+  Jean: 'denim', Pantalon: 'twill', Chino: 'twill', Jogging: 'fleece', Cargo: 'canvas', Short: 'twill',
   Blouson: 'leather', Manteau: 'wool', Doudoune: 'puffer', 'Coupe-vent': 'nylon',
   Baskets: 'leather', Running: 'mesh', Ville: 'leather', Bottines: 'suede',
   Casquette: 'twill', Bonnet: 'knit', Sac: 'leather', Ceinture: 'leather', Lunettes: 'leather', 'Écharpe': 'knit'
@@ -123,6 +123,19 @@ function jacket(it, id, hex, mat, decor = '') {
     out += stitch(`M${L + 12} 150 L${L + 46} 150 M${R - 12} 150 L${R - 46} 150`, st, 1.1);
   }
   return { svg: cloth(id, d, hex, mat, out, decor), vb: `0 0 200 ${H + 6}` };
+}
+
+/* ---------- short (cadre 120 × 150) ---------- */
+function shorts(it, id, hex, mat, decor = '') {
+  const fit = it.fit || 'Regular', w = { 'Ajusté': 0, Regular: 4, Ample: 9 }[fit] ?? 4, bot = 138;
+  const d = `M16 8 L104 8 L${108 + w} ${bot} L${63 + w * 0.3} ${bot} L60 96 L${57 - w * 0.3} ${bot} L${12 - w} ${bot} Z`;
+  const dk = shade(hex, 0.7), st = shade(hex, lum(hex) > 0.5 ? 0.68 : 1.5);
+  let out = `<path d="M16 8 L104 8 L104 22 L16 22 Z" fill="${dk}" opacity=".25"/>`;
+  out += `<path d="M24 8 V22 M44 8 V22 M76 8 V22 M96 8 V22" stroke="${dk}" stroke-width="3" opacity=".5"/>`;
+  out += fold(id, 'M34 60 Q36 100 30 128') + fold(id, 'M86 60 Q84 100 90 128') + fold(id, 'M46 40 Q48 80 44 120', true);
+  out += stitch('M60 22 L60 62 Q60 70 68 70', st, 1) + line('M18 26 L36 48 M102 26 L84 48', dk, 1.1, 0.7) + `<circle cx="60" cy="15" r="2.2" fill="${dk}"/>`;
+  out += stitch(`M${13 - w} ${bot - 8} L${57 - w * 0.3} ${bot - 8} M${63 + w * 0.3} ${bot - 8} L${107 + w} ${bot - 8}`, st, 0.9);   // ourlet
+  return cloth(id, d, hex, mat, out, decor);
 }
 
 /* ---------- bas (cadre 120 × 270) ---------- */
@@ -275,6 +288,7 @@ export function flatlaySVG(item, { logos = [] } = {}) {
   const decor = logos.map((l) => `<image href="${l.href}" xlink:href="${l.href}" x="${l.x}" y="${l.y}" width="${l.w}" height="${l.h}" preserveAspectRatio="xMidYMid meet"/>`).join('');
   if (item.category === 'chaussures') return shoes(item, id, hex, decor);
   if (item.category === 'accessoire') return accessory(item, id, hex, decor);
+  if (isShort(item)) return wrap('0 0 120 146', defs(id, mat, hex) + shorts(item, id, hex, mat, decor), label);
   if (item.category === 'bas') return wrap('0 0 120 270', defs(id, mat, hex) + bottom(item, id, hex, mat, decor), label);
   if (item.category === 'veste') { const j = jacket(item, id, hex, mat, decor); return wrap(j.vb, defs(id, mat, hex) + j.svg, label); }
   return wrap('0 0 200 200', defs(id, mat, hex) + top(item, id, hex, mat, decor), label);
