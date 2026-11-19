@@ -78,7 +78,6 @@ js/config.js            clés Supabase (vide = mode démo)
 js/app.js               écrans, navigation, actions
 js/store.js             données : Supabase ou mode démo (même interface)
 js/draw.js              dessins SVG : visage, verso des pièces
-js/regen.js             pièce recréée : analyse de la photo (couleur du tissu, logos) puis nouvelle pièce dessinée
 js/cutout.js            détourage des photos dans le navigateur (aucun envoi, aucune librairie)
 js/flatlay.js           visuels « produit » des pièces sans photo (proportions réelles, textures de tissu)
 icons/icon.svg          icône de l'app
@@ -92,7 +91,7 @@ supabase/schema.sql     base de données + sécurité + stockage
 - Navigation par onglets en bas : Tenue · Garde-robe · + (importer) · Historique · Profil. Style streetwear, clair/sombre.
 - Tenue (accueil) : composition à plat façon lookbook (photos des pièces posées et superposées ; toucher une pièce pour la changer, glisser pour passer à la suivante), flèches haut / bas / chaussures, 5 emplacements (haut, veste, bas, chaussures, accessoire) : on touche un emplacement pour choisir la pièce, dont la veste.
 - Suggestion de tenue : couleurs qui s'accordent + proportions (ample avec ajusté), en évitant ce qui a été porté récemment.
-- Import d'une pièce : photos recto/verso, **détourées automatiquement** sur l'appareil (fond supprimé, ombre retirée, recadrage) puis **pièce recréée** : la photo est analysée (couleur exacte du tissu, logos : forme, couleur, position, taille) et une pièce neuve est dessinée en pose produit (manches droites pour les hauts), selon le type et la coupe choisis, logo replacé — pour toutes les catégories : hauts, vestes, bas, chaussures (semelle détectée à part), accessoires (casquette, bonnet, sac, ceinture, lunettes, écharpe, montre, bague, chaîne, bracelet) ; choix « Recréée / Détourée / Origine », couleur proposée d'après le vêtement, nom, catégorie, type, coupe. Les pièces déjà importées peuvent être détourées depuis « Modifier ».
+- Import d'une pièce : **image trouvée sur Internet** (site de la marque, boutique) — enregistrée puis choisie, ou copiée puis « Coller l'image » ; bouton « Chercher l'image sur Internet ». L'image est **nettoyée automatiquement** sur l'appareil (fond supprimé, ombre retirée, recadrage ; images déjà transparentes gardées telles quelles), choix « Nettoyée / Origine », couleur proposée d'après la pièce, nom, catégorie, type, coupe. Les pièces déjà importées peuvent être nettoyées depuis « Modifier ».
 - Garde-robe : vue d'ensemble des catégories, puis écrans Hauts / Bas / Vestes / Chaussures / Accessoires : filtres type, coupe, couleur, tri ; fiche avec carte qui pivote recto/verso ; modifier, supprimer, mettre sur l'avatar.
 - Tenues enregistrées et historique « porté aujourd'hui ».
 - Profil : avatar (peau, cheveux, yeux, barbe, morphologie), mode sombre, synchronisation, déconnexion, suppression du compte.

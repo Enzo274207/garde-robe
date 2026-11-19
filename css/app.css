@@ -289,6 +289,10 @@ h1.h-font { margin: 0; font-size: clamp(30px, 9vw, 38px); line-height: .92; lett
 .cut-seg button { font-size: 11px; padding: 0 1px; letter-spacing: -.01em; }
 .cut-busy { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; background: rgba(244,243,239,.85); color: #0D0D0D; font-size: 13px; font-weight: 600; }
 .cut-busy .spinner { margin: 0; width: 22px; height: 22px; border-top-color: #0D0D0D; }
+.paste-btn { height: 44px; font-size: 13px; padding: 0 8px; gap: 6px; }
+.web-hint { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--r); background: var(--chip); }
+.web-hint p { margin: 0; font-size: 13px; line-height: 1.4; color: var(--muted); }
+.web-hint .more-toggle { min-height: 40px; }
 .cut-msg { margin: 0; font-size: 12px; line-height: 1.35; color: var(--danger); }
 .photo-slot .x { position: absolute; top: 4px; right: 4px; z-index: 2; width: 44px; height: 44px; border-radius: 50%; border: none; background: rgba(0,0,0,.72); color: #fff; display: flex; align-items: center; justify-content: center; padding: 0; }
 .face-preview { align-self: center; width: 132px; height: 132px; border-radius: var(--r-lg); background: var(--chip); overflow: hidden; flex-shrink: 0; }

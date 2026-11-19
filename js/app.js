@@ -2,7 +2,6 @@ import { CATEGORIES, CAT_ORDER, PALETTE, AV, DEFAULT_AVATAR, SEASONS, STYLES, WA
 import { faceSVG, garmentSVG, esc } from './draw.js';
 import { flatlaySVG } from './flatlay.js';
 import { cutout, isCutPath } from './cutout.js';
-import { regenerate } from './regen.js';
 import { demo, online, isDemo, today } from './store.js';
 import { createSync } from './sync.js';
 import { compressImage } from './image.js';
@@ -471,12 +470,13 @@ function viewImport() {
   const slot = (side, label) => {
     const url = f[side + 'Preview'], busy = f[side + 'Busy'];
     const isCut = f[side] ? (f[side + 'Use'] !== 'raw' && !!f[side + 'Cut']) : f[side + 'IsCut'];
-    const opt = (v, txt) => (v === 'gen' && !f[side + 'Gen'] ? '' : `<button type="button" data-act="useCut" data-side="${side}" data-v="${v}" aria-pressed="${f[side + 'Use'] === v}">${txt}</button>`);
+    const opt = (v, txt) => `<button type="button" data-act="useCut" data-side="${side}" data-v="${v}" aria-pressed="${f[side + 'Use'] === v}">${txt}</button>`;
     const tools = busy ? '' : f[side + 'Cut'] && f[side + 'Raw']
-      ? `<div class="seg cut-seg" role="group" aria-label="Photo ${label.toLowerCase()}">${opt('gen', 'Recréée')}${opt('cut', 'Détourée')}${opt('raw', 'Origine')}</div>`
-      : url && !f[side] && !f[side + 'IsCut'] ? `<button type="button" class="more-toggle" data-act="cutExisting" data-side="${side}">Détourer cette photo</button>` : '';
+      ? `<div class="seg cut-seg" role="group" aria-label="Image ${label.toLowerCase()}">${opt('cut', 'Nettoyée')}${opt('raw', 'Origine')}</div>`
+      : url && !f[side] && !f[side + 'IsCut'] ? `<button type="button" class="more-toggle" data-act="cutExisting" data-side="${side}">Nettoyer cette image</button>`
+      : !url ? `<button type="button" class="btn ghost paste-btn" data-act="pastePhoto" data-side="${side}">${ico('plus', 16, 2)}Coller l’image</button>` : '';
     return `<div class="photo-col"><label class="photo-slot ${isCut ? 'cut' : ''}">${url ? `<img src="${esc(url)}" alt="Aperçu ${label.toLowerCase()}"><button type="button" class="x" data-act="clearPhoto" data-side="${side}" aria-label="Retirer la photo">${ico('close', 14, 2.2)}</button>` : `${ico('cam', 26, 1.6)}${label}`}
-      ${busy ? '<span class="cut-busy" role="status"><span class="spinner"></span>Détourage…</span>' : ''}
+      ${busy ? '<span class="cut-busy" role="status"><span class="spinner"></span>Nettoyage…</span>' : ''}
       <input type="file" accept="image/*" data-photo="${side}" aria-label="${label}"></label>${tools}${f[side + 'Msg'] ? `<p class="cut-msg">${esc(f[side + 'Msg'])}</p>` : ''}</div>`;
   };
   const chips = (act, opts, cur, labelFn = (o) => o) => opts.map((o) => `<button type="button" class="chip" aria-pressed="${Array.isArray(cur) ? cur.includes(o) : cur === o}" data-act="${act}" data-v="${esc(o)}">${esc(labelFn(o))}</button>`).join('');
@@ -487,7 +487,9 @@ function viewImport() {
     <span class="grab"></span>
     <div class="sheet-head"><h2 class="h-font">${editing ? 'Modifier la pièce' : 'Importer une pièce'}</h2><button class="icon-btn" data-act="closeSheet" aria-label="Fermer">${ico('close', 18, 2)}</button></div>
     <div class="sheet-body">
-      <div class="photos">${slot('front', 'Photo recto')}${slot('back', 'Photo verso')}</div>
+      <div class="photos">${slot('front', 'Image recto')}${slot('back', 'Image verso')}</div>
+      ${editing ? '' : `<div class="web-hint"><p>Trouve l’image de ta pièce sur Internet (site de la marque, boutique). Enregistre-la puis touche le cadre, ou copie-la puis touche « Coller l’image ». Elle sera nettoyée automatiquement.</p>
+        <button type="button" class="more-toggle" data-act="searchWeb">Chercher l’image sur Internet ↗</button></div>`}
       <label class="field">Nom de la pièce<input class="input" id="i-name" data-input="name" value="${esc(f.name)}" placeholder="Ex. : Pull col roulé" autocomplete="off" maxlength="80"></label>
       <div class="field">Catégorie<div class="swatches">${chips('iCat', CAT_ORDER, f.category, (o) => CATEGORIES[o].title)}</div></div>
       <div class="field">Type<div class="swatches">${chips('iType', C.types, f.type)}</div></div>
@@ -582,8 +584,8 @@ function newForm(cat = 'haut') {
     secondary_colors: [], seasons: [], style: null, warmth: null, formality: null, material: '', brand: '', size: '', favorite: false,
     front: null, back: null, frontPreview: null, backPreview: null,
     // détourage : version détourée / d'origine, choix, message, en cours
-    frontCut: null, frontGen: null, frontRaw: null, frontUse: 'gen', frontMsg: '', frontBusy: false, frontIsCut: false,
-    backCut: null, backGen: null, backRaw: null, backUse: 'gen', backMsg: '', backBusy: false, backIsCut: false
+    frontCut: null, frontRaw: null, frontUse: 'cut', frontMsg: '', frontBusy: false, frontIsCut: false,
+    backCut: null, backRaw: null, backUse: 'cut', backMsg: '', backBusy: false, backIsCut: false
   };
 }
 function currentOutfit() {
@@ -680,9 +682,9 @@ const actions = {
   closeSheet() { closeSheet(); render(); },
   closeSheetBg(el, ev) { if (ev.target === el) { closeSheet(); render(); } },
   toggleMore() { S.sheet.more = !S.sheet.more; render(); },
-  iCat(el) { const f = S.sheet.form, C = CATEGORIES[el.dataset.v]; f.category = el.dataset.v; f.type = C.types[0]; f.fit = C.fits[1] || C.fits[0] || ''; render(); refreshGen(); },
-  iType(el) { S.sheet.form.type = el.dataset.v; render(); refreshGen(); },
-  iFit(el) { S.sheet.form.fit = el.dataset.v; render(); refreshGen(); },
+  iCat(el) { const f = S.sheet.form, C = CATEGORIES[el.dataset.v]; f.category = el.dataset.v; f.type = C.types[0]; f.fit = C.fits[1] || C.fits[0] || ''; render(); },
+  iType(el) { S.sheet.form.type = el.dataset.v; render(); },
+  iFit(el) { S.sheet.form.fit = el.dataset.v; render(); },
   iColor(el) { const p = PALETTE.find((x) => x.hex === el.dataset.v); S.sheet.form.color_hex = p.hex; S.sheet.form.color_name = p.label; S.sheet.form.colorTouched = true; render(); },
   iColor2(el) {
     const f = S.sheet.form, v = el.dataset.v;
@@ -697,14 +699,32 @@ const actions = {
   iFormality(el) { const f = S.sheet.form, v = Number(el.dataset.v); f.formality = f.formality === v ? null : v; render(); },
   clearPhoto(el, ev) {
     ev.preventDefault(); const f = S.sheet.form, s = el.dataset.side; dropPreview(f[s + 'Preview']);
-    Object.assign(f, { [s]: null, [s + 'Preview']: null, [s + 'Cut']: null, [s + 'Gen']: null, [s + 'Raw']: null, [s + 'Msg']: '', [s + 'IsCut']: false });
+    Object.assign(f, { [s]: null, [s + 'Preview']: null, [s + 'Cut']: null, [s + 'Raw']: null, [s + 'Msg']: '', [s + 'IsCut']: false });
     render();
   },
   // choisir entre la version détourée et la photo d'origine
   useCut(el) {
     const f = S.sheet.form, s = el.dataset.side, v = el.dataset.v;
-    const blob = { gen: f[s + 'Gen'], cut: f[s + 'Cut'], raw: f[s + 'Raw'] }[v]; if (!blob) return;
+    const blob = { cut: f[s + 'Cut'], raw: f[s + 'Raw'] }[v]; if (!blob) return;
     dropPreview(f[s + 'Preview']); f[s] = blob; f[s + 'Use'] = v; f[s + 'Preview'] = makePreview(blob); render();
+  },
+  // recherche d'images avec le nom (ou le type et la couleur) de la pièce
+  searchWeb() {
+    const f = S.sheet.form, name = (document.getElementById('i-name')?.value || f.name || '').trim();
+    const q = name || [f.type, f.color_name].filter(Boolean).join(' ');
+    window.open('https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(q + ' fond blanc'), '_blank', 'noopener');
+  },
+  // coller une image copiée sur Internet (Safari : appui long sur l'image > « Copier »)
+  async pastePhoto(el, ev) {
+    ev.preventDefault(); const s = el.dataset.side;
+    try {
+      if (!navigator.clipboard?.read) throw new Error('unsupported');
+      for (const it of await navigator.clipboard.read()) {
+        const type = it.types.find((t) => t.startsWith('image/'));
+        if (type) { await applyPhoto(s, await it.getType(type), false); return; }
+      }
+      toast('Aucune image copiée : appui long sur l’image du site, puis « Copier »', 'err');
+    } catch (e) { toast(e.message === 'unsupported' ? 'Coller n’est pas possible ici : enregistre l’image puis touche le cadre' : 'Accès au presse-papiers refusé', 'err'); }
   },
   // détourer une photo déjà enregistrée (pièces importées avant le détourage)
   async cutExisting(el) {
@@ -833,25 +853,6 @@ app.addEventListener('change', async (ev) => {
   if (!side || !ev.target.files?.[0] || !S.sheet?.form) return;
   await applyPhoto(side, ev.target.files[0], false);
 });
-async function genFrom(cutBlob, f, bg) {
-  try { const r = await regenerate(cutBlob, { category: f.category, type: f.type, fit: f.fit, name: f.name }, bg); if (r.ok) f.genColor = r.color; return r.ok ? r.blob : null; } catch (e) { return null; }
-}
-// Le gabarit dépend de la catégorie, du type et de la coupe : on redessine si l'un d'eux change.
-let regenTimer;
-function refreshGen() {
-  clearTimeout(regenTimer);
-  regenTimer = setTimeout(async () => {
-    const f = S.sheet?.form; if (!f) return;
-    for (const side of ['front', 'back']) {
-      if (!f[side + 'Cut']) continue;
-      const gen = await genFrom(f[side + 'Cut'], f, f[side + 'Bg']);
-      if (S.sheet?.form !== f || !gen) continue;
-      f[side + 'Gen'] = gen;
-      if (f[side + 'Use'] === 'gen') { dropPreview(f[side + 'Preview']); f[side] = gen; f[side + 'Preview'] = makePreview(gen); }
-    }
-    render();
-  }, 150);
-}
 // Prépare une photo : version d'origine compressée (JPEG) + version détourée (transparente).
 // La version détourée est choisie par défaut quand le détourage réussit.
 async function applyPhoto(side, file, keepRawPreview) {
@@ -861,17 +862,14 @@ async function applyPhoto(side, file, keepRawPreview) {
     const raw = await compressImage(file);
     let cut = null;
     try { cut = await cutout(file); } catch (e) { cut = { ok: false, reason: 'Détourage impossible sur cette image.' }; }
-    // pièce recréée : analysée (couleur, logos) puis redessinée en pose produit
-    let gen = null;
-    if (cut.ok) { f[side + 'Bg'] = cut.bg; gen = await genFrom(cut.blob, f, cut.bg); }
     if (S.sheet?.form !== f) return;   // panneau fermé entre-temps
     dropPreview(f[side + 'Preview']);
-    f[side + 'Raw'] = raw; f[side + 'Cut'] = cut.ok ? cut.blob : null; f[side + 'Gen'] = gen;
-    f[side + 'Use'] = gen ? 'gen' : cut.ok ? 'cut' : 'raw';
-    f[side] = gen || (cut.ok ? cut.blob : raw); f[side + 'Preview'] = makePreview(f[side]);
+    f[side + 'Raw'] = raw; f[side + 'Cut'] = cut.ok ? cut.blob : null;
+    f[side + 'Use'] = cut.ok ? 'cut' : 'raw';
+    f[side] = cut.ok ? cut.blob : raw; f[side + 'Preview'] = makePreview(f[side]);
     f[side + 'Msg'] = cut.ok ? '' : cut.reason;
     // couleur proposée d'après le vêtement détouré (tant qu'elle n'a pas été choisie à la main)
-    const rgb = f.genColor ? [1, 3, 5].map((i) => parseInt(f.genColor.slice(i, i + 2), 16)) : cut.rgb;
+    const rgb = cut.rgb;
     if (cut.ok && rgb && side === 'front' && !f.colorTouched && !S.sheet.editId) {
       const d = (h) => { // écart de luminosité + écart de teinte (la teinte compte davantage)
         const c = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)), dr = c[0] - rgb[0], dg = c[1] - rgb[1], db = c[2] - rgb[2];
@@ -880,7 +878,7 @@ async function applyPhoto(side, file, keepRawPreview) {
       const best = PALETTE.reduce((a, b) => (d(b.hex) < d(a.hex) ? b : a));
       f.color_hex = best.hex; f.color_name = best.label;
     }
-    if (!cut.ok && keepRawPreview) { f[side] = null; f[side + 'Raw'] = null; f[side + 'Gen'] = null; }   // rien à changer sur une photo existante
+    if (!cut.ok && keepRawPreview) { f[side] = null; f[side + 'Raw'] = null; }   // rien à changer sur une photo existante
   } catch (e) { toast('Photo illisible, essaie une autre image', 'err'); }
   f[side + 'Busy'] = false; render();
 }
