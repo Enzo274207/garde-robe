@@ -56,6 +56,7 @@ L'app s'ouvre ensuite en plein écran comme une app normale.
 | `supabase/migrations/001_securite.sql` | Vérifie les couleurs et longueurs, interdit d'utiliser la pièce d'un autre utilisateur dans une tenue, limite les photos (5 Mo, JPEG/PNG/WebP), ajoute la suppression de compte | `001_securite_down.sql` |
 | `supabase/migrations/002_fiches.sql` | Catégorie Vestes, détails facultatifs (saisons, style, chaleur, formalité, matière, marque, taille, couleurs secondaires), favoris, nombre de ports | `002_fiches_down.sql` |
 | `supabase/migrations/003_synchro.sql` | Date de modification sur le profil et l’historique (détection des conflits hors connexion) ; le compteur de ports ne compte plus comme une modification | `003_synchro_down.sql` |
+| `supabase/migrations/004_accessoires.sql` | Plusieurs accessoires dans une tenue (3 bagues, des bracelets…) : nouvelle liste `extra_accessory_ids`, le premier accessoire reste dans `accessory_id` | `004_accessoires_down.sql` |
 
 `supabase/schema.sql` reste le schéma de départ pour un projet neuf (puis appliquer les migrations).
 

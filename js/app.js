@@ -1,8 +1,8 @@
-import { CATEGORIES, CAT_ORDER, PALETTE, AV, DEFAULT_AVATAR, SEASONS, STYLES, WARMTH, FORMALITY, isNeutral, safeColor } from './catalog.js';
+import { CATEGORIES, CAT_ORDER, ACC_SIZE, MAX_ACC, PALETTE, AV, DEFAULT_AVATAR, SEASONS, STYLES, WARMTH, FORMALITY, isNeutral, safeColor } from './catalog.js';
 import { faceSVG, garmentSVG, esc } from './draw.js';
 import { flatlaySVG } from './flatlay.js';
 import { cutout, isCutPath } from './cutout.js';
-import { demo, online, isDemo, today } from './store.js';
+import { demo, online, isDemo, today, accessoryIds, stripItem } from './store.js';
 import { createSync } from './sync.js';
 import { compressImage } from './image.js';
 import { STYLIST_NAME, stylistSprite, stylistIcon, stylistScene, composeOutfit, WEATHER, VIBE } from './stylist.js';
@@ -44,7 +44,7 @@ const S = {
   ready: false, user: null, profile: { username: '', avatar: { ...DEFAULT_AVATAR } },
   items: [], outfits: [], wears: [],
   route: { name: 'home' },
-  sel: { haut: null, bas: null, chaussures: null, veste: null, accessoire: null },
+  sel: { haut: null, bas: null, chaussures: null, veste: null, accessoire: [] },   // accessoire : plusieurs à la fois
   note: 'Choisis ta tenue',
   filters: { type: 'Tous', fit: 'Toutes', color: null, sort: 0 },
   sheet: null, detail: null, toast: null, loadErr: '',
@@ -93,10 +93,14 @@ function ensureSelection() {
     const list = byCat(c);
     if (!list.find((i) => i.id === S.sel[c])) S.sel[c] = list[0]?.id || null;
   }
-  for (const c of ['veste', 'accessoire']) if (S.sel[c] && item(S.sel[c])?.category !== c) S.sel[c] = null;
+  if (S.sel.veste && item(S.sel.veste)?.category !== 'veste') S.sel.veste = null;
+  // Accessoires : toujours une liste (l'ancienne sélection enregistrée n'en avait qu'un)
+  const acc = Array.isArray(S.sel.accessoire) ? S.sel.accessoire : [S.sel.accessoire];
+  S.sel.accessoire = [...new Set(acc)].filter((id) => item(id)?.category === 'accessoire').slice(0, MAX_ACC);
   try { localStorage.setItem('garderobe-sel', JSON.stringify(S.sel)); } catch (e) { /* rien */ }
 }
 function step(cat, d) {
+  if (cat === 'accessoire') return;
   const list = byCat(cat); if (!list.length) return;
   const i = Math.max(0, list.findIndex((x) => x.id === S.sel[cat]));
   S.sel[cat] = list[(i + d + list.length) % list.length].id;
@@ -252,6 +256,7 @@ function tabBar() {
 const SLOTS = [['haut', 'Haut'], ['veste', 'Veste'], ['bas', 'Bas'], ['chaussures', 'Chaussures'], ['accessoire', 'Accessoire']];
 const OPTIONAL = new Set(['veste', 'accessoire']);
 function slotBtn(cat, label) {
+  if (cat === 'accessoire') return accSlotBtn(label);
   const it = item(S.sel[cat]);
   const vis = it ? (it.front_url ? `<img src="${esc(it.front_url)}" alt="" data-photo-img>` : flatlaySVG(it)) : ico(OPTIONAL.has(cat) ? 'plus' : cat, 20, 1.8);
   const name = it ? esc(it.name) : OPTIONAL.has(cat) ? 'Ajouter' : 'Aucun';
@@ -259,17 +264,46 @@ function slotBtn(cat, label) {
     <span class="slot-vis">${vis}</span><span class="slot-k">${label}</span><span class="slot-n">${name}</span></button>`;
 }
 
+// Case « Accessoires » : le premier en image, le nombre s'il y en a plusieurs
+function accSlotBtn(label) {
+  const list = S.sel.accessoire.map(item).filter(Boolean), it = list[0], n = list.length;
+  const vis = it ? (it.front_url ? `<img src="${esc(it.front_url)}" alt="" data-photo-img>` : flatlaySVG(it)) : ico('plus', 20, 1.8);
+  const name = n > 1 ? `${n} pièces` : it ? esc(it.name) : 'Ajouter';
+  return `<button class="slot ${n ? 'on' : ''}" data-act="openPick" data-cat="accessoire" aria-label="${n > 1 ? 'Accessoires' : label} : ${n ? esc(list.map((x) => x.name).join(', ')) : 'aucun'}. Changer">
+    <span class="slot-vis">${vis}${n > 1 ? `<span class="slot-count">${n}</span>` : ''}</span><span class="slot-k">${n > 1 ? 'Accessoires' : label}</span><span class="slot-n">${name}</span></button>`;
+}
+
 /* ---------------- composition à plat (façon lookbook) ---------------- */
 // Positions en % de la zone : haut en haut à gauche, veste qui chevauche à droite,
 // bas en dessous, accessoire et chaussures sur la droite. Sans veste, l'accessoire remonte.
+// Les accessoires se rangent dans une zone libre, chacun à sa taille réelle (une bague reste petite).
 const LOOK = {
-  withJacket: { haut: [4, 4, 44, 36, 0], veste: [46, 3, 50, 50, 0], bas: [10, 38, 36, 59, 0], accessoire: [60, 54, 24, 18, 8], chaussures: [50, 74, 46, 22, 0] },
-  noJacket: { haut: [6, 4, 50, 40, 0], accessoire: [62, 10, 28, 24, 8], bas: [14, 40, 38, 57, 0], chaussures: [52, 64, 44, 26, 0] }
+  withJacket: { haut: [4, 4, 44, 36, 0], veste: [46, 3, 50, 50, 0], bas: [10, 38, 36, 59, 0], accessoire: [49, 54, 49, 20], chaussures: [50, 74, 46, 22, 0] },
+  noJacket: { haut: [6, 4, 50, 40, 0], accessoire: [58, 9, 40, 52], bas: [14, 40, 38, 57, 0], chaussures: [52, 64, 44, 26, 0] }
 };
+// Place approximative de la zone (en carrés de 1 % de la largeur de la planche), pour réduire si elle déborde
+const ACC_ROOM = { withJacket: 1500, noJacket: 3200 };
 const LOOK_LABEL = { haut: 'Haut', veste: 'Veste', bas: 'Bas', chaussures: 'Chaussures', accessoire: 'Accessoire' };
+function lookAccessories([x, y, w, h], room) {
+  const list = S.sel.accessoire.map(item).filter(Boolean); if (!list.length) return '';
+  const size = (it) => ACC_SIZE[it.type] || 16;
+  const need = list.reduce((t, it) => t + (size(it) + 3) ** 2, 0);
+  const k = Math.min(1, Math.sqrt(room / need));   // beaucoup d'accessoires : tout rétrécit un peu
+  // les plus grands d'abord, les bijoux ensuite (ils se regroupent)
+  const rank = (it) => CATEGORIES.accessoire.types.indexOf(it.type);
+  const order = list.slice().sort((a, b) => size(b) - size(a) || rank(a) - rank(b));
+  return `<div class="look-acc" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%">${order.map((it, i) => {
+    const vis = it.front_url ? `<img src="${esc(it.front_url)}" alt="" data-photo-img draggable="false">` : flatlaySVG(it);
+    const rot = [-6, 5, -3, 7, -8, 4][i % 6];
+    return `<button class="look-piece acc ${it.front_url ? (isCutPath(it.front_path) ? 'cut' : 'photo') : ''}" data-act="openPick" data-cat="accessoire" style="--s:${(size(it) * k).toFixed(1)};--rot:${rot}deg"
+      aria-label="Accessoire : ${esc(it.name)}. Toucher pour changer les accessoires">${vis}</button>`;
+  }).join('')}</div>`;
+}
 function lookBoard() {
-  const L = S.sel.veste && item(S.sel.veste) ? LOOK.withJacket : LOOK.noJacket;
+  const jacket = !!(S.sel.veste && item(S.sel.veste));
+  const L = jacket ? LOOK.withJacket : LOOK.noJacket;
   const pieces = Object.entries(L).map(([cat, [x, y, w, h, rot]]) => {
+    if (cat === 'accessoire') return lookAccessories([x, y, w, h], ACC_ROOM[jacket ? 'withJacket' : 'noJacket']);
     const it = item(S.sel[cat]); if (!it) return '';
     const vis = it.front_url ? `<img src="${esc(it.front_url)}" alt="" data-photo-img draggable="false">` : flatlaySVG(it);
     return `<button class="look-piece ${it.front_url ? (isCutPath(it.front_path) ? 'cut' : 'photo') : ''}" data-act="openPick" data-swipe="${cat}" data-cat="${cat}" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%;--rot:${rot}deg"
@@ -365,6 +399,7 @@ function styCompose() {
 
 /* ---------------- choix d'une pièce depuis l'accueil ---------------- */
 function viewPick() {
+  if (S.sheet.cat === 'accessoire') return viewPickAcc();
   const cat = S.sheet.cat, C = CATEGORIES[cat], list = byCat(cat), cur = S.sel[cat];
   const check = `<span class="pick-check" aria-hidden="true">${ico('check', 15, 2.6)}</span>`;
   const none = OPTIONAL.has(cat) ? `<button class="pick ${!cur ? 'on' : ''}" data-act="pick" data-cat="${cat}" data-id="" aria-pressed="${!cur}"><span class="pick-img none">${ico('close', 26, 1.8)}</span><b>${cat === 'veste' ? 'Sans veste' : 'Aucun'}</b><small>Retirer de la tenue</small>${!cur ? check : ''}</button>` : '';
@@ -377,6 +412,26 @@ function viewPick() {
       <button class="more-toggle" data-act="pickBrowse" data-cat="${cat}">Voir toutes les ${C.title.toLowerCase()} (filtres) →</button>`
       : `<div class="empty" style="padding:24px 10px"><b>Aucune pièce ici</b>Importe ${C.one} pour la porter.</div>
       <button class="btn accent" data-act="openImport" data-cat="${cat}">${ico('plus', 20, 2)}Importer ${C.one}</button>`}
+    </div>
+  </div></div>`;
+}
+
+// Accessoires : on en coche autant qu'on veut (3 bagues, 2 bracelets…), classés par type
+function viewPickAcc() {
+  const C = CATEGORIES.accessoire, list = byCat('accessoire'), cur = S.sel.accessoire, n = cur.length;
+  const check = `<span class="pick-check" aria-hidden="true">${ico('check', 15, 2.6)}</span>`;
+  const tile = (it) => { const on = cur.includes(it.id); return `<button class="pick ${on ? 'on' : ''}" data-act="pickAcc" data-id="${it.id}" aria-pressed="${on}"><span class="pick-img">${tileVisual(it)}</span><b>${esc(it.name)}</b><small>${esc([it.type, it.color_name].filter(Boolean).join(' · '))}</small>${on ? check : ''}</button>`; };
+  const rank = (it) => { const i = C.types.indexOf(it.type); return i < 0 ? 99 : i; };   // rangés par type : les bagues ensemble
+  const sorted = list.slice().sort((a, b) => rank(a) - rank(b));
+  return `<div class="overlay" data-act="closeSheetBg"><div class="sheet" role="dialog" aria-modal="true" aria-label="Choisir : ${C.title}">
+    <span class="grab"></span>
+    <div class="sheet-head"><div><span class="kicker sheet-kicker">${n ? `${n} porté${n > 1 ? 's' : ''} · plusieurs possibles` : 'Plusieurs possibles'}</span><h2 class="h-font">${C.title}</h2></div><button class="icon-btn" data-act="closeSheet" aria-label="Fermer">${ico('close', 18, 2)}</button></div>
+    <div class="sheet-body">
+      ${list.length ? `<div class="pick-grid">${sorted.map(tile).join('')}</div>
+      <div class="pick-done">${n ? `<button class="btn ghost" data-act="pickAccNone">Tout retirer</button>` : ''}<button class="btn dark" data-act="closeSheet">${n ? `Valider (${n})` : 'Fermer'}</button></div>
+      <button class="more-toggle" data-act="pickBrowse" data-cat="accessoire">Voir tous les accessoires (filtres) →</button>`
+      : `<div class="empty" style="padding:24px 10px"><b>Aucune pièce ici</b>Importe ${C.one} pour le porter.</div>
+      <button class="btn accent" data-act="openImport" data-cat="accessoire">${ico('plus', 20, 2)}Importer ${C.one}</button>`}
     </div>
   </div></div>`;
 }
@@ -603,7 +658,7 @@ function viewSync() {
 function minis(ids) {
   return ids.map(item).filter(Boolean).map((it) => `<span class="mini">${it.front_url ? `<img src="${esc(it.front_url)}" alt="">` : `<span class="dot" style="background:${col(it.color_hex)}"></span>`}${esc(it.name)}</span>`).join('') || '<span class="note">Pièces supprimées</span>';
 }
-const outfitIds = (o) => [o.top_id, o.jacket_id, o.bottom_id, o.shoes_id, o.accessory_id];
+const outfitIds = (o) => [o.top_id, o.jacket_id, o.bottom_id, o.shoes_id, ...accessoryIds(o)];
 function viewHistory() {
   const outfits = S.outfits.slice().sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0));
   return `${demoBanner()}<main class="screen">
@@ -639,7 +694,8 @@ function newForm(cat = 'haut') {
   };
 }
 function currentOutfit() {
-  return { top_id: S.sel.haut, bottom_id: S.sel.bas, shoes_id: S.sel.chaussures, jacket_id: S.sel.veste, accessory_id: S.sel.accessoire };
+  const [first = null, ...more] = S.sel.accessoire;
+  return { top_id: S.sel.haut, bottom_id: S.sel.bas, shoes_id: S.sel.chaussures, jacket_id: S.sel.veste, accessory_id: first, extra_accessory_ids: more };
 }
 // Exécute une opération ; renvoie true seulement si elle a réussi. Les erreurs sont toujours affichées.
 async function guarded(fn, errTarget) {
@@ -671,6 +727,14 @@ const actions = {
     S.sel[el.dataset.cat] = el.dataset.id || null; S.note = 'Choix manuel';
     closeSheet(); ensureSelection(); render();
   },
+  pickAcc(el) {
+    const id = el.dataset.id, cur = S.sel.accessoire;
+    if (cur.includes(id)) S.sel.accessoire = cur.filter((x) => x !== id);
+    else if (cur.length >= MAX_ACC) return toast(`${MAX_ACC} accessoires maximum`, 'err');
+    else S.sel.accessoire = [...cur, id];
+    S.note = 'Choix manuel'; ensureSelection(); render();
+  },
+  pickAccNone() { S.sel.accessoire = []; S.note = 'Choix manuel'; ensureSelection(); render(); },
   pickBrowse(el) { closeSheet(); location.hash = '#/c/' + el.dataset.cat; },
   unselect(el) { S.sel[el.dataset.cat] = null; ensureSelection(); render(); },
   async saveOutfit() {
@@ -807,7 +871,8 @@ const actions = {
       } else {
         saved = await store.addItem(meta, f.front, f.back);
         S.items.unshift(saved);
-        S.sel[f.category] = saved.id;
+        if (f.category === 'accessoire') S.sel.accessoire = [...S.sel.accessoire, saved.id];
+        else S.sel[f.category] = saved.id;
       }
       closeSheet(); ensureSelection();
     }, 'sheet');
@@ -831,7 +896,9 @@ const actions = {
   },
   tryOn(el) {
     const it = item(el.dataset.id); if (!it) return;
-    S.sel[it.category] = it.id; S.note = 'Choix manuel'; S.detail = null; ensureSelection();
+    if (it.category === 'accessoire') { if (!S.sel.accessoire.includes(it.id)) S.sel.accessoire = [...S.sel.accessoire, it.id]; }
+    else S.sel[it.category] = it.id;
+    S.note = 'Choix manuel'; S.detail = null; ensureSelection();
     location.hash = '#/';
     toast(`${it.name} sur l’avatar`);
   },
@@ -843,8 +910,7 @@ const actions = {
     const ok = await guarded(async () => {
       res = (await store.deleteItem(id)) || {};
       S.items = S.items.filter((x) => x.id !== id);
-      const strip = (o) => { for (const k of ['top_id', 'bottom_id', 'shoes_id', 'accessory_id', 'jacket_id']) if (o[k] === id) o[k] = null; };
-      S.outfits.forEach(strip); S.wears.forEach(strip);
+      for (const o of [...S.outfits, ...S.wears]) stripItem(o, id);
       S.detail = null; S.confirmDelete = null; ensureSelection();
     });
     if (ok) toast(res.warning || done(`« ${name} » supprimé`), res.warning ? 'err' : 'ok');
@@ -860,7 +926,7 @@ const actions = {
     if (o.bottom_id && item(o.bottom_id)) S.sel.bas = o.bottom_id;
     if (o.shoes_id && item(o.shoes_id)) S.sel.chaussures = o.shoes_id;
     S.sel.veste = o.jacket_id && item(o.jacket_id) ? o.jacket_id : null;
-    S.sel.accessoire = o.accessory_id && item(o.accessory_id) ? o.accessory_id : null;
+    S.sel.accessoire = accessoryIds(o).filter((id) => item(id));
     S.note = o.name || 'Tenue enregistrée'; ensureSelection(); location.hash = '#/';
   },
   async favOutfit(el) {

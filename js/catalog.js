@@ -33,6 +33,10 @@ export const CATEGORIES = {
   }
 };
 export const CAT_ORDER = ['haut', 'bas', 'veste', 'chaussures', 'accessoire'];
+// Taille d'un accessoire sur la planche de la tenue (en % de la largeur) : les bijoux restent petits.
+// Un type inconnu (ancienne pièce) prend une taille moyenne.
+export const ACC_SIZE = { Bague: 11, Bracelet: 14, Montre: 14, 'Chaîne': 18, Lunettes: 17, Ceinture: 20, Casquette: 24, Bonnet: 23, 'Écharpe': 24, Sac: 26 };
+export const MAX_ACC = 12;   // accessoires portés en même temps (même limite que la base, migration 004)
 
 // Caractéristiques facultatives d'une fiche
 export const SEASONS = ['Printemps', 'Été', 'Automne', 'Hiver'];

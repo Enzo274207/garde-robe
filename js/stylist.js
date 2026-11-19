@@ -205,10 +205,29 @@ export function composeOutfit(items, wears, ctx, seen = new Set()) {
   const wantJacket = ctx.weather === 'froid' || (ctx.weather === 'doux' && (ctx.vibe === 'habille' || Math.random() < 0.5));
   if (V.length && wantJacket) jacket = pickTop(V, (v) => fitScore(v, c) + pairScore(v, top) * 0.6 + pairScore(v, bottom) * 0.6);
   const shoes = C.length ? pickTop(C, (s) => fitScore(s, c) + pairScore(s, bottom) * 0.8) : null;
-  let acc = null;
-  if (A.length && (ctx.vibe === 'habille' || Math.random() < 0.6)) acc = pickTop(A, (a) => fitScore(a, c) + pairScore(a, top) * 0.5);
+  const acc = pickAccessories(A, c, top);
 
-  return { sel: { haut: top.id, bas: bottom.id, veste: jacket?.id || null, chaussures: shoes?.id || null, accessoire: acc?.id || null }, lines: explain(ctx, top, bottom, jacket, items) };
+  return { sel: { haut: top.id, bas: bottom.id, veste: jacket?.id || null, chaussures: shoes?.id || null, accessoire: acc.map((a) => a.id) }, lines: explain(ctx, top, bottom, jacket, items) };
+}
+
+// Accessoires : un seul par famille (pas casquette + bonnet), 1 à 3 en tout.
+// Les bagues font exception : si elle en met une, elle peut en ajouter jusqu'à 3, comme on les porte au quotidien.
+const ACC_FAMILY = { Casquette: 'tete', Bonnet: 'tete' };
+function pickAccessories(A, c, top) {
+  if (!A.length || !(c.vibe === 'habille' || Math.random() < 0.7)) return [];
+  const score = (a) => fitScore(a, c) + pairScore(a, top) * 0.5;
+  const first = pickTop(A, score), out = [first], floor = score(first) - 3;
+  const max = 1 + Math.floor(Math.random() * 3);
+  const fam = (a) => ACC_FAMILY[a.type] || a.type;
+  const ranked = A.filter((a) => a !== first).map((a) => [a, score(a)]).sort((x, y) => y[1] - x[1]);
+  for (const [a, s] of ranked) {
+    if (s < floor) break;
+    const same = out.filter((o) => fam(o) === fam(a)).length;
+    const rings = a.type === 'Bague' && same > 0 && same < 3;
+    if (rings ? out.length >= max + 2 : same || out.length >= max) continue;
+    if (Math.random() < 0.75) out.push(a);
+  }
+  return out;
 }
 
 function explain(ctx, top, bottom, jacket, items) {
