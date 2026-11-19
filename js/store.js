@@ -11,6 +11,18 @@ const RESIGN_MARGIN = 60 * 60 * 1000;          // on renouvelle 1 h avant l'expi
 const MAX_UPLOAD = 5 * 1024 * 1024;            // même limite que le bucket (migration 001)
 const extOf = (b) => (b?.type === 'image/png' ? '.png' : b?.type === 'image/webp' ? '.webp' : '.jpg');
 const OUTFIT_KEYS = ['top_id', 'bottom_id', 'shoes_id', 'accessory_id', 'jacket_id'];
+// Accessoires en plus du premier (migration 004) : liste d'identifiants, vide sur les anciennes tenues
+const EXTRA = 'extra_accessory_ids';
+const extras = (row) => (Array.isArray(row?.[EXTRA]) ? row[EXTRA] : []);
+// Tous les accessoires d'une tenue ou d'un jour d'historique (le premier reste dans accessory_id)
+const accessoryIds = (row) => [row?.accessory_id, ...extras(row)].filter(Boolean);
+// La tenue utilise-t-elle cette pièce ?
+const usesItem = (row, id) => OUTFIT_KEYS.some((k) => row[k] === id) || extras(row).includes(id);
+// Retire une pièce supprimée d'une tenue (comme « on delete set null » côté base)
+function stripItem(row, id) {
+  for (const k of OUTFIT_KEYS) if (row[k] === id) row[k] = null;
+  if (extras(row).includes(id)) row[EXTRA] = extras(row).filter((x) => x !== id);
+}
 
 // Champs d'une pièce (valeurs par défaut pour les anciennes fiches)
 export const ITEM_DEFAULTS = {
@@ -84,7 +96,7 @@ const demo = {
   async _withUrls(it) { return normItem({ ...it, front_url: await this._url(it.front_path), back_url: await this._url(it.back_path) }); },
   _recount(d) {
     for (const it of d.items) {
-      const ws = d.wears.filter((w) => OUTFIT_KEYS.some((k) => w[k] === it.id));
+      const ws = d.wears.filter((w) => usesItem(w, it.id));
       it.wear_count = ws.length;
       it.last_worn_on = ws.map((w) => w.worn_on).sort().pop() || null;
     }
@@ -133,8 +145,7 @@ const demo = {
     const d = this._db(); const it = d.items.find((x) => x.id === id);
     if (!it) return;
     d.items = d.items.filter((x) => x.id !== id);
-    for (const o of d.outfits) for (const k of OUTFIT_KEYS) if (o[k] === id) o[k] = null;
-    for (const w of d.wears) for (const k of OUTFIT_KEYS) if (w[k] === id) w[k] = null;
+    for (const r of [...d.outfits, ...d.wears]) stripItem(r, id);
     this._save(d);
     for (const p of [it.front_path, it.back_path].filter(Boolean)) { this._forget(p); await idbDel(p).catch(() => {}); }
   },
@@ -204,6 +215,17 @@ function frError(msg) {
   if (m.includes('mime type')) return 'Format de photo non accepté (JPEG, PNG ou WebP).';
   if (m.includes('autre utilisateur')) return 'Une des pièces de la tenue n’est plus disponible.';
   return msg;
+}
+// Tant que la migration 004 n'est pas passée, la colonne des accessoires en plus n'existe pas :
+// une tenue avec un seul accessoire s'enregistre quand même, comme avant.
+async function withExtras(row, run) {
+  let { data, error } = await run(row);
+  if (error && String(error.message || '').includes(EXTRA)) {
+    if (extras(row).length) throw new Error('Plusieurs accessoires : la base doit d’abord être mise à jour (migration 004).');
+    const r = { ...row }; delete r[EXTRA];
+    ({ data, error } = await run(r));
+  }
+  fail(error); return data;
 }
 
 const online = {
@@ -339,11 +361,11 @@ const online = {
   },
   async saveOutfit(o) {
     const c = await client();
-    const { data, error } = await c.from('outfits').insert(o).select().single(); fail(error); return data;
+    return withExtras(o, (r) => c.from('outfits').insert(r).select().single());
   },
   async updateOutfit(id, patch) {
     const c = await client();
-    const { data, error } = await c.from('outfits').update(patch).eq('id', id).select().single(); fail(error); return data;
+    return withExtras(patch, (r) => c.from('outfits').update(r).eq('id', id).select().single());
   },
   async deleteOutfit(id) { const c = await client(); const { error } = await c.from('outfits').delete().eq('id', id); fail(error); },
   async wears() {
@@ -353,7 +375,7 @@ const online = {
   async setWear(w) {
     const c = await client();
     const row = { ...w, worn_on: w.worn_on || today(), user_id: this._uid };
-    const { data, error } = await c.from('wears').upsert(row, { onConflict: 'user_id,worn_on' }).select().single(); fail(error); return data;
+    return withExtras(row, (r) => c.from('wears').upsert(r, { onConflict: 'user_id,worn_on' }).select().single());
   },
   async deleteWear(id) { const c = await client(); const { error } = await c.from('wears').delete().eq('id', id); fail(error); },
   // Supprime toutes les photos puis le compte (les lignes partent en cascade côté base).
@@ -372,4 +394,4 @@ const online = {
   }
 };
 
-export { demo, online, today, uid, OUTFIT_KEYS, normItem };
+export { demo, online, today, uid, OUTFIT_KEYS, normItem, accessoryIds, usesItem, stripItem };

@@ -9,7 +9,7 @@
 //   serveur est comparée à celle qu'on avait : si la donnée a changé ailleurs entre-temps,
 //   rien n'est écrasé : la modification passe en « conflit » et l'utilisateur choisit.
 // - iOS ne permet pas la synchronisation en arrière-plan : elle a lieu quand l'app est ouverte.
-import { ITEM_DEFAULTS, today, uid as newId, OUTFIT_KEYS, normItem, isNetworkError } from './store.js';
+import { ITEM_DEFAULTS, today, uid as newId, normItem, isNetworkError, usesItem, stripItem } from './store.js';
 
 const READ_TIMEOUT = 10000;
 
@@ -55,12 +55,12 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
 /* ---------- effets locaux de chaque opération (rejouables) ---------- */
 function recount(snap) {
   for (const it of snap.items) {
-    const ws = snap.wears.filter((w) => OUTFIT_KEYS.some((k) => w[k] === it.id));
+    const ws = snap.wears.filter((w) => usesItem(w, it.id));
     it.wear_count = ws.length;
     it.last_worn_on = ws.map((w) => w.worn_on).sort().pop() || null;
   }
 }
-const stripRefs = (snap, id) => { for (const r of [...snap.outfits, ...snap.wears]) for (const k of OUTFIT_KEYS) if (r[k] === id) r[k] = null; };
+const stripRefs = (snap, id) => { for (const r of [...snap.outfits, ...snap.wears]) stripItem(r, id); };
 const LOCAL = {
   addItem(snap, { meta, frontKey, backKey }, entry) {
     snap.items = snap.items.filter((x) => x.id !== meta.id);
