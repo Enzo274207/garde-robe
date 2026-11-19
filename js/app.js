@@ -39,6 +39,8 @@ const ico = (k, size = 22, sw = 1.7, fill = 'none') => `<svg aria-hidden="true" 
 const col = (hex) => safeColor(hex);
 // En ligne : couche hors connexion par-dessus Supabase. Démo : stockage local direct.
 const store = isDemo ? demo : createSync(online);
+// Amis : toujours lus en direct (rien à garder hors connexion)
+const friendsApi = isDemo ? demo : online;
 
 /* ---------------- état ---------------- */
 const S = {
@@ -50,7 +52,9 @@ const S = {
   filters: { type: 'Tous', fit: 'Toutes', color: null, sort: 0 },
   sheet: null, detail: null, toast: null, loadErr: '',
   authMode: 'login', authErr: '', authInfo: '', busy: false, confirmDelete: null, confirmAccount: false, confirmSignOut: false,
-  net: { offline: false, syncing: false, pending: 0, conflicts: 0 }
+  net: { offline: false, syncing: false, pending: 0, conflicts: 0 },
+  fr: { loaded: false, code: '', list: [], err: '', input: '', confirm: null },   // mes amis et demandes
+  fw: null                                                                          // dressing d'un ami ouvert
 };
 const app = document.getElementById('app');
 const byCat = (c) => S.items.filter((i) => i.category === c);
@@ -131,7 +135,7 @@ async function boot() {
 }
 function resetSession() {
   closeSheet();
-  Object.assign(S, { user: null, detail: null, items: [], outfits: [], wears: [], loadErr: '', confirmDelete: null });
+  Object.assign(S, { user: null, detail: null, items: [], outfits: [], wears: [], loadErr: '', confirmDelete: null, fw: null, fr: { loaded: false, code: '', list: [], err: '', input: '', confirm: null } });
   if (location.hash && location.hash !== '#/') location.hash = '#/';
   render();
 }
@@ -174,9 +178,13 @@ function route() {
   } else if (a === 'historique') S.route = { name: 'history' };
   else if (a === 'garde-robe') S.route = { name: 'wardrobe' };
   else if (a === 'profil') S.route = { name: 'profile' };
+  else if (a === 'amis' && b) S.route = { name: 'friend', id: decodeURIComponent(b) };
+  else if (a === 'amis') S.route = { name: 'friends' };
   else if (a === 'styliste') { if (S.route.name !== 'stylist') S.sty = { step: 'hello', seen: new Set(), typed: '' }; S.route = { name: 'stylist' }; }
   else S.route = { name: 'home' };
-  S.detail = null; S.confirmAccount = false; S.confirmSignOut = false;
+  S.detail = null; S.confirmAccount = false; S.confirmSignOut = false; S.fr.confirm = null;
+  if (S.user && (S.route.name === 'friends' || S.route.name === 'friend' || S.route.name === 'profile')) loadFriends();
+  if (S.user && S.route.name === 'friend' && S.fw?.id !== S.route.id) loadFriendItems(S.route.id);
 }
 addEventListener('hashchange', () => { route(); render(); scrollTo(0, 0); });
 
@@ -194,6 +202,8 @@ function render() {
   else if (S.route.name === 'wardrobe') html = viewWardrobe();
   else if (S.route.name === 'profile') html = viewProfile();
   else if (S.route.name === 'stylist') html = viewStylist();
+  else if (S.route.name === 'friends') html = viewFriends();
+  else if (S.route.name === 'friend') html = viewFriend();
   else html = viewHome();
   if (S.ready && S.user && !S.loadErr) html += tabBar();
   if (S.user && !S.loadErr && S.detail) html += viewDetail();
@@ -250,7 +260,7 @@ function viewAuth() {
 
 /* ---------------- barre d'onglets ---------------- */
 function tabBar() {
-  const r = S.route.name, cur = r === 'cat' ? 'wardrobe' : r;
+  const r = S.route.name, cur = r === 'cat' || r === 'friends' || r === 'friend' ? 'wardrobe' : r;
   const tab = (key, href, icon, label) => `<a class="tab" href="${href}" ${cur === key ? 'aria-current="page"' : ''}>${icon === 'stylist' ? stylistIcon(24) : ico(icon, 22, 1.9)}<span>${label}</span></a>`;
   return `<nav class="tabbar" aria-label="Navigation principale">
     ${tab('home', '#/', 'haut', 'Tenue')}${tab('wardrobe', '#/garde-robe', 'hanger', 'Garde-robe')}
@@ -476,7 +486,8 @@ function viewWardrobe() {
   const total = S.items.length, favs = S.items.filter((i) => i.favorite).length;
   const thumb = (it) => (it.front_url ? `<img src="${esc(it.front_url)}" alt="" loading="lazy" data-photo-img>` : `<span>${flatlaySVG(it)}</span>`);
   return `${demoBanner()}<main class="screen">
-    <header class="cat-head"><div class="t"><span class="kicker">Ma collection</span><h1 class="h-font">Garde-robe</h1><span class="sub">${total} pièce${total > 1 ? 's' : ''}${favs ? ` · ${favs} favori${favs > 1 ? 's' : ''}` : ''}</span></div></header>
+    <header class="cat-head"><div class="t"><span class="kicker">Ma collection</span><h1 class="h-font">Garde-robe</h1><span class="sub">${total} pièce${total > 1 ? 's' : ''}${favs ? ` · ${favs} favori${favs > 1 ? 's' : ''}` : ''}</span></div>
+      <a class="pill" href="#/amis" aria-label="Les dressings de mes amis">${ico('friends', 18, 1.9)}Amis${incoming() ? `<span class="count">${incoming()}</span>` : ''}</a></header>
     <div class="cats">${CAT_ORDER.map((cat) => {
       const list = byCat(cat), C = CATEGORIES[cat], extra = list.length - 4;
       const shown = extra > 0 ? list.slice(0, 3) : list.slice(0, 4);
@@ -503,6 +514,7 @@ function viewProfile() {
     <h2 class="label-sec">Réglages</h2>
     <div class="menu">
       <button class="menu-row" data-act="openAvatar">${ico('avatar', 20, 1.8)}<span class="grow">Modifier mon avatar</span>${ico('chev', 18, 2)}</button>
+      <a class="menu-row" href="#/amis">${ico('friends', 20, 1.8)}<span class="grow">Amis</span>${incoming() ? `<span class="count">${incoming()}</span>` : `<span class="note">${S.fr.list.filter((f) => f.status === 'accepted').length || ''}</span>`}${ico('chev', 18, 2)}</a>
       <button class="menu-row" data-act="theme" aria-pressed="${dark}">${ico('moon', 20, 1.8)}<span class="grow">Mode sombre</span><span class="toggle"><i></i></span></button>
       ${!isDemo ? `<button class="menu-row" data-act="openSync">${ico('retry', 20, 1.8)}<span class="grow">Synchronisation</span><span class="note">${syncState}</span></button>` : ''}
     </div>
@@ -513,6 +525,86 @@ function viewProfile() {
     </div>
     ${S.confirmSignOut ? `<div class="hint" style="color:var(--danger)">${n.pending + n.conflicts} modification(s) pas encore envoyée(s) seront perdues.</div>` : ''}
     ${S.confirmAccount ? `<div class="hint" style="color:var(--danger)">${isDemo ? 'Toutes les données de démo seront effacées.' : 'Tes pièces, photos, tenues et ton historique seront supprimés. Impossible d’annuler.'}</div>` : ''}
+  </main>`;
+}
+
+/* ---------------- amis ---------------- */
+const incoming = () => S.fr.list.filter((f) => f.incoming && f.status === 'pending').length;
+async function loadFriends() {
+  if (S.fr.loading) return;
+  S.fr.loading = true;
+  try { const r = await friendsApi.friends(); Object.assign(S.fr, { code: r.code, list: r.list, err: '' }); }
+  catch (e) { S.fr.err = e?.message || 'Impossible de charger tes amis.'; }
+  S.fr.loading = false; S.fr.loaded = true;
+  if (S.fw && !S.fw.name) S.fw.name = S.fr.list.find((f) => f.friend_id === S.fw.id)?.username || '';
+  render();
+}
+async function loadFriendItems(id) {
+  S.fw = { id, name: S.fr.list.find((f) => f.friend_id === id)?.username || '', items: null, cat: 'Tous', err: '' };
+  const fw = S.fw;
+  try { fw.items = await friendsApi.friendItems(id); } catch (e) { fw.err = e?.message || 'Impossible de charger ce dressing.'; }
+  if (S.fw === fw) render();
+}
+function friendRow(f) {
+  const face = `<span class="fr-face">${faceSVG(f.avatar, 40)}</span>`, name = `<b class="grow">${esc(f.username || 'Sans pseudo')}</b>`;
+  if (f.status === 'accepted') return `<a class="menu-row" href="#/amis/${encodeURIComponent(f.friend_id)}">${face}<span class="grow fr-t">${name}<small>${f.items_count} pièce${f.items_count > 1 ? 's' : ''}</small></span>${ico('chev', 18, 2)}</a>`;
+  if (f.incoming) return `<div class="menu-row">${face}<span class="grow fr-t">${name}<small>veut voir ton dressing (et te montrer le sien)</small></span>
+    <button class="btn accent mini" data-act="acceptFriend" data-id="${f.id}" ${S.busy ? 'disabled' : ''}>Accepter</button>
+    <button class="icon-btn" data-act="removeFriend" data-id="${f.id}" aria-label="Refuser la demande de ${esc(f.username)}" ${S.busy ? 'disabled' : ''}>${ico('close', 18, 2)}</button></div>`;
+  return `<div class="menu-row">${face}<span class="grow fr-t">${name}<small>Demande envoyée · en attente</small></span>
+    <button class="icon-btn" data-act="removeFriend" data-id="${f.id}" aria-label="Annuler la demande à ${esc(f.username)}" ${S.busy ? 'disabled' : ''}>${ico('close', 18, 2)}</button></div>`;
+}
+function viewFriends() {
+  const fr = S.fr, friends = fr.list.filter((f) => f.status === 'accepted');
+  const asked = fr.list.filter((f) => f.status === 'pending' && f.incoming), sent = fr.list.filter((f) => f.status === 'pending' && !f.incoming);
+  return `${demoBanner()}<main class="screen">
+    <header class="cat-head">
+      <a class="icon-btn" href="#/garde-robe" aria-label="Retour à la garde-robe">${ico('back', 20, 2)}</a>
+      <div class="t"><span class="kicker">Entre potes</span><h1 class="h-font">Amis</h1><span class="sub">${friends.length} ami${friends.length > 1 ? 's' : ''} · vous voyez vos dressings, sans pouvoir y toucher</span></div>
+    </header>
+    ${!fr.loaded ? '<div class="spinner" role="status" aria-label="Chargement"></div>'
+      : fr.err ? `<div class="empty"><b>Oups</b>${esc(fr.err)}<button class="btn ghost" style="height:40px" data-act="reloadFriends">${ico('retry', 18, 2)}Réessayer</button></div>`
+      : `<section class="fr-code" aria-label="Mon code ami">
+        <span class="kicker">Ton code ami</span>
+        <b class="h-font">${esc(fr.code || '——')}</b>
+        <button class="btn accent" data-act="shareCode">${ico('friends', 18, 2)}Envoyer mon code</button>
+      </section>
+      <form id="friend-form" class="fr-add" novalidate>
+        <label class="field" style="flex:1">Ajouter un ami avec son code
+          <input class="input" id="f-code" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ex. K7MQ2D" value="${esc(fr.input)}"></label>
+        <button class="btn dark" type="submit" ${S.busy ? 'disabled' : ''}>${ico('plus', 18, 2.2)}Ajouter</button>
+      </form>
+      ${asked.length ? `<h2 class="label-sec">Demandes reçues</h2><div class="menu">${asked.map(friendRow).join('')}</div>` : ''}
+      <h2 class="label-sec">Mes amis</h2>
+      ${friends.length ? `<div class="menu">${friends.map(friendRow).join('')}</div>`
+        : '<div class="hint">Pas encore d’amis. Envoie ton code à un pote, ou entre le sien juste au-dessus.</div>'}
+      ${sent.length ? `<h2 class="label-sec">En attente</h2><div class="menu">${sent.map(friendRow).join('')}</div>` : ''}`}
+  </main>`;
+}
+function viewFriend() {
+  const fw = S.fw, f = S.fr.list.find((x) => x.friend_id === S.route.id), name = fw?.name || f?.username || 'Ami';
+  const all = fw?.items || [], list = fw?.cat === 'Tous' ? all : all.filter((it) => it.category === fw?.cat);
+  const chips = ['Tous', ...CAT_ORDER].filter((c) => c === 'Tous' || all.some((it) => it.category === c)).map((c) => {
+    const n = c === 'Tous' ? all.length : all.filter((it) => it.category === c).length;
+    return `<button class="chip" aria-pressed="${fw?.cat === c}" data-act="fwCat" data-v="${c}">${c === 'Tous' ? 'Tout' : CATEGORIES[c].title} · ${n}</button>`;
+  }).join('');
+  const confirming = f && S.fr.confirm === f.id;
+  return `${demoBanner()}<main class="screen">
+    <header class="cat-head">
+      <a class="icon-btn" href="#/amis" aria-label="Retour à mes amis">${ico('back', 20, 2)}</a>
+      ${f ? `<span class="fr-face">${faceSVG(f.avatar, 40)}</span>` : ''}
+      <div class="t"><span class="kicker">Dressing de</span><h1 class="h-font">${esc(name)}</h1><span class="sub">${fw?.items ? `${all.length} pièce${all.length > 1 ? 's' : ''} · lecture seule` : ''}</span></div>
+    </header>
+    ${!fw || (!fw.items && !fw.err) ? '<div class="spinner" role="status" aria-label="Chargement"></div>'
+      : fw.err ? `<div class="empty"><b>Oups</b>${esc(fw.err)}<button class="btn ghost" style="height:40px" data-act="reloadFriend">${ico('retry', 18, 2)}Réessayer</button></div>`
+      : !all.length ? `<div class="empty"><b>Dressing vide</b>${esc(name)} n’a encore importé aucune pièce.</div>`
+      : `<div class="chips noscroll" role="group" aria-label="Catégorie">${chips}</div>
+        <div class="grid">${list.map((it) => `<button class="tile" data-act="openFriendItem" data-id="${esc(it.id)}" aria-label="Voir ${esc(it.name)}">
+          <div class="img">${tileVisual(it)}<span class="badge">${esc(it.type)}</span></div>
+          <div class="meta"><b>${esc(it.name)}</b><div class="row"><span class="dot" style="width:12px;height:12px;background:${col(it.color_hex)}"></span><span class="grow">${esc(it.color_name || '')}</span>${it.fit ? `<span class="tag" style="font-size:11px;color:var(--fg)">${esc(it.fit)}</span>` : ''}</div></div>
+        </button>`).join('')}</div>`}
+    ${f ? `<div class="menu" style="margin-top:8px"><button class="menu-row ${confirming ? 'confirm' : 'danger'}" data-act="removeFriend" data-id="${f.id}" data-confirm="1" ${S.busy ? 'disabled' : ''}>${ico('close', 20, 1.8)}<span class="grow">${confirming ? 'Confirmer : retirer de mes amis' : `Retirer ${esc(name)} de mes amis`}</span></button></div>
+      ${confirming ? `<div class="hint">Vous ne verrez plus vos dressings respectifs. Vos pièces ne sont pas touchées.</div>` : ''}` : ''}
   </main>`;
 }
 
@@ -565,7 +657,8 @@ function wearInfo(it) {
 }
 
 function viewDetail() {
-  const it = item(S.detail.id); if (!it) return '';
+  const mine = !S.detail.friend;
+  const it = mine ? item(S.detail.id) : S.fw?.items?.find((x) => x.id === S.detail.id); if (!it) return '';
   const C = CATEGORIES[it.category];
   const confirming = S.confirmDelete === it.id;
   const extra = [
@@ -578,18 +671,18 @@ function viewDetail() {
     <div class="detail-top">
       <button class="icon-btn" data-act="closeDetail" aria-label="Fermer">${ico('back', 20, 2)}</button>
       <span class="label" style="letter-spacing:.08em;text-transform:uppercase">${esc(it.type)}</span>
-      <span style="display:flex;gap:8px">
+      ${mine ? `<span style="display:flex;gap:8px">
         <button class="icon-btn ${it.favorite ? 'on' : ''}" data-act="favorite" data-id="${it.id}" aria-pressed="${!!it.favorite}" aria-label="${it.favorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}" ${S.busy ? 'disabled' : ''}>${ico('heart', 18, 1.8, it.favorite ? 'currentColor' : 'none')}</button>
         <button class="icon-btn" data-act="edit" data-id="${it.id}" aria-label="Modifier la pièce">${ico('edit', 18, 1.8)}</button>
-      </span>
+      </span>` : '<span style="width:44px"></span>'}
     </div>
     <div class="flip-wrap"><button class="flip ${S.detail.back ? 'back' : ''}" data-act="flip" aria-label="Retourner la pièce (face affichée : ${S.detail.back ? 'verso' : 'recto'})">
       <div class="face">${tileVisual(it, 'front')}<span class="badge">Recto</span></div>
-      <div class="face b">${it.back_url ? tileVisual(it, 'back') : it.front_url ? `<div class="empty" style="padding:20px">Pas de photo verso<br><small>Ajoute-la avec le crayon</small></div>` : garmentSVG(it, 'back')}<span class="badge">Verso</span></div>
+      <div class="face b">${it.back_url ? tileVisual(it, 'back') : it.front_url ? `<div class="empty" style="padding:20px">Pas de photo verso<br>${mine ? '<small>Ajoute-la avec le crayon</small>' : ''}</div>` : garmentSVG(it, 'back')}<span class="badge">Verso</span></div>
     </button></div>
     <div class="hint">Touche la carte pour la retourner</div>
     <h2 class="h-font" style="margin:0;font-size:24px">${esc(it.name)}</h2>
-    <div class="note">${esc(wearInfo(it))}</div>
+    <div class="note">${mine ? esc(wearInfo(it)) : `Dans le dressing de ${esc(S.fw.name)}`}</div>
     <div class="tags">
       <span><span class="dot" style="width:12px;height:12px;background:${col(it.color_hex)}"></span>${esc(it.color_name || '')}</span>
       ${(it.secondary_colors || []).map((h) => `<span><span class="dot" style="width:12px;height:12px;background:${col(h)}"></span>${esc(PALETTE.find((p) => p.hex === h)?.label || '')}</span>`).join('')}
@@ -597,11 +690,11 @@ function viewDetail() {
       <span>${esc(C.title)}</span>
       ${extra.map((x) => `<span>${esc(x)}</span>`).join('')}
     </div>
-    <div class="actions">
+    ${mine ? `<div class="actions">
       <button class="btn accent" data-act="tryOn" data-id="${it.id}">${ico('avatar', 18, 1.8)}${it.category === 'accessoire' ? 'Ajouter à la tenue' : 'Mettre sur l’avatar'}</button>
       <button class="btn ghost" style="padding:0;color:${confirming ? '#fff' : 'var(--danger)'};background:${confirming ? 'var(--danger)' : ''}" data-act="delete" data-id="${it.id}" aria-label="${confirming ? 'Confirmer la suppression' : 'Supprimer la pièce'}" ${S.busy ? 'disabled' : ''}>${ico(confirming ? 'check' : 'trash', 20, 1.8)}</button>
     </div>
-    ${confirming ? '<div class="hint" style="color:var(--danger)">Touche encore pour supprimer définitivement</div>' : ''}
+    ${confirming ? '<div class="hint" style="color:var(--danger)">Touche encore pour supprimer définitivement</div>' : ''}` : ''}
   </div></div>`;
 }
 
@@ -916,6 +1009,42 @@ const actions = {
   },
   open(el) { S.detail = { id: el.dataset.id, back: false }; S.confirmDelete = null; render(); },
   closeDetail() { S.detail = null; S.confirmDelete = null; render(); },
+  openFriendItem(el) { S.detail = { id: el.dataset.id, back: false, friend: true }; render(); },
+  fwCat(el) { if (S.fw) { S.fw.cat = el.dataset.v; render(); } },
+  reloadFriends() { S.fr.loaded = false; render(); loadFriends(); },
+  reloadFriend() { if (S.route.name === 'friend') { loadFriendItems(S.route.id); render(); } },
+  async shareCode() {
+    const code = S.fr.code; if (!code) return;
+    const text = `Ajoute-moi sur Garde-robe pour voir mon dressing ! Mon code ami : ${code}`;
+    const url = location.origin + location.pathname;
+    try {
+      if (navigator.share) { await navigator.share({ title: 'Garde-robe', text, url }); return; }
+      await navigator.clipboard.writeText(`${text}\n${url}`); toast('Code copié, colle-le à ton pote');
+    } catch (e) { if (e?.name !== 'AbortError') toast(`Ton code ami : ${code}`); }
+  },
+  async addFriend() {
+    const code = (document.getElementById('f-code')?.value ?? S.fr.input).trim().toUpperCase();
+    if (code.length !== 6) return toast('Le code ami fait 6 caractères', 'err');
+    let res = '';
+    const ok = await guarded(async () => { res = await friendsApi.addFriend(code); });
+    if (!ok) return;
+    S.fr.input = '';
+    toast(res === 'accepted' ? 'Vous êtes amis : dressings partagés !' : res === 'already' ? 'Vous êtes déjà amis' : 'Demande envoyée : elle doit l’accepter');
+    await loadFriends();
+  },
+  async acceptFriend(el) {
+    const ok = await guarded(async () => { await friendsApi.acceptFriend(el.dataset.id); });
+    if (ok) { toast('Demande acceptée : dressings partagés !'); await loadFriends(); }
+  },
+  async removeFriend(el) {
+    const id = el.dataset.id;
+    if (el.dataset.confirm && S.fr.confirm !== id) { S.fr.confirm = id; render(); return; }
+    const ok = await guarded(async () => { await friendsApi.removeFriend(id); });
+    if (!ok) return;
+    S.fr.confirm = null; S.fr.list = S.fr.list.filter((f) => f.id !== id);
+    if (S.route.name === 'friend') { S.fw = null; location.hash = '#/amis'; }
+    toast('C’est fait'); render();
+  },
   // Retourne la carte sans redessiner l'écran (sinon l'animation 3D est perdue)
   flip(el) {
     S.detail.back = !S.detail.back;
@@ -1003,6 +1132,7 @@ app.addEventListener('click', (ev) => {
 app.addEventListener('input', (ev) => {
   const k = ev.target.dataset.input;
   if (k && S.sheet?.form) S.sheet.form[k] = ev.target.value;
+  if (ev.target.id === 'f-code') S.fr.input = ev.target.value;
 });
 app.addEventListener('change', async (ev) => {
   if (ev.target.dataset.check && S.sheet?.form) { S.sheet.form[ev.target.dataset.check] = ev.target.checked; return; }
@@ -1048,6 +1178,7 @@ app.addEventListener('error', (ev) => {
   }
 }, true);
 app.addEventListener('submit', async (ev) => {
+  if (ev.target.id === 'friend-form') { ev.preventDefault(); if (!S.busy) actions.addFriend(); return; }
   if (ev.target.id !== 'auth-form') return;
   ev.preventDefault();
   const fd = new FormData(ev.target);

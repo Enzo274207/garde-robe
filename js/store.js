@@ -173,7 +173,39 @@ const demo = {
     for (const it of d.items) for (const p of [it.front_path, it.back_path].filter(Boolean)) { this._forget(p); await idbDel(p).catch(() => {}); }
     localStorage.removeItem(LS);
   },
-  async resetDemo() { return this.deleteAccount(); }
+  async resetDemo() { return this.deleteAccount(); },
+  // Amis (démo) : un ami déjà accepté et une demande reçue, pour essayer l'écran
+  _friends() {
+    const d = this._db();
+    if (!d.friends) {
+      d.friends = [
+        { id: 'f-leo', friend_id: 'leo', username: 'Léo', avatar: { ...DEFAULT_AVATAR, skin: 1, hair: 2, hairStyle: 'Bouclé' }, status: 'accepted', incoming: false },
+        { id: 'f-sam', friend_id: 'sam', username: 'Sam', avatar: { ...DEFAULT_AVATAR }, status: 'pending', incoming: true }
+      ];
+      this._save(d);
+    }
+    return d;
+  },
+  async friends() {
+    const d = this._friends();
+    return { code: 'DEMO42', list: d.friends.map((f) => ({ ...f, items_count: f.status === 'accepted' ? DEMO_ITEMS.length - 3 : 0 })) };
+  },
+  async addFriend(code) {
+    const c = String(code || '').trim().toUpperCase();
+    if (c === 'DEMO42') throw new Error('C’est ton propre code ami.');
+    if (!/^[A-Z0-9]{6}$/.test(c)) throw new Error('Code ami introuvable.');
+    const d = this._friends();
+    d.friends.push({ id: 'f-' + c, friend_id: c.toLowerCase(), username: 'Ami ' + c, avatar: { ...DEFAULT_AVATAR }, status: 'pending', incoming: false });
+    this._save(d); return 'pending';
+  },
+  async acceptFriend(id) { const d = this._friends(); const f = d.friends.find((x) => x.id === id); if (f) f.status = 'accepted'; this._save(d); },
+  async removeFriend(id) { const d = this._friends(); d.friends = d.friends.filter((x) => x.id !== id); this._save(d); },
+  async friendItems(friendId) {
+    const f = this._friends().friends.find((x) => x.friend_id === friendId && x.status === 'accepted');
+    if (!f) throw new Error('Cette personne n’est pas (ou plus) dans tes amis.');
+    const now = Date.now();
+    return DEMO_ITEMS.slice(3).map((it, i) => normItem({ ...it, id: `${friendId}-${i}`, front_path: null, back_path: null, front_url: null, back_url: null, created_at: new Date(now - i * 60000).toISOString() }));
+  }
 };
 
 /* =========================================================
@@ -214,6 +246,8 @@ function frError(msg) {
   if (m.includes('payload too large') || m.includes('exceeded the maximum')) return 'Photo trop lourde (5 Mo maximum).';
   if (m.includes('mime type')) return 'Format de photo non accepté (JPEG, PNG ou WebP).';
   if (m.includes('autre utilisateur')) return 'Une des pièces de la tenue n’est plus disponible.';
+  if (/my_friend|add_friend|friend_items|accept_friend|friendships/.test(m)) return 'Les amis ne sont pas encore activés : la base doit d’abord être mise à jour (migration 005).';
+  if (m.includes('code ami introuvable')) return 'Code ami introuvable. Vérifie les 6 caractères.';
   return msg;
 }
 // Tant que la migration 004 n'est pas passée, la colonne des accessoires en plus n'existe pas :
@@ -378,6 +412,25 @@ const online = {
     return withExtras(row, (r) => c.from('wears').upsert(r, { onConflict: 'user_id,worn_on' }).select().single());
   },
   async deleteWear(id) { const c = await client(); const { error } = await c.from('wears').delete().eq('id', id); fail(error); },
+  // Amis (migration 005) : toujours en ligne, rien n'est mis dans la file hors connexion
+  async friends() {
+    const c = await client();
+    const [code, list] = await Promise.all([c.rpc('my_friend_code'), c.rpc('my_friends')]);
+    fail(code.error); fail(list.error);
+    return { code: code.data || '', list: (list.data || []).map((f) => ({ ...f, avatar: { ...DEFAULT_AVATAR, ...(f.avatar || {}) }, items_count: Number(f.items_count) || 0 })) };
+  },
+  async addFriend(code) {
+    const c = await client();
+    const { data, error } = await c.rpc('add_friend', { code: String(code || '').trim() });
+    fail(error); return data;
+  },
+  async acceptFriend(id) { const c = await client(); const { error } = await c.rpc('accept_friend', { fid: id }); fail(error); },
+  async removeFriend(id) { const c = await client(); const { error } = await c.from('friendships').delete().eq('id', id); fail(error); },
+  async friendItems(friendId) {
+    const c = await client();
+    const { data, error } = await c.rpc('friend_items', { friend: friendId });
+    fail(error); return this._sign(data || []);
+  },
   // Supprime toutes les photos puis le compte (les lignes partent en cascade côté base).
   async deleteAccount() {
     const c = await client();
