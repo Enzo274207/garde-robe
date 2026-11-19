@@ -113,7 +113,7 @@ h1.h-font { margin: 0; font-size: clamp(30px, 9vw, 38px); line-height: .92; lett
 /* ---------- barre d'onglets ---------- */
 .tabbar {
   position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; z-index: 10;
-  width: 100%; max-width: 480px; display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); align-items: stretch;
+  width: 100%; max-width: 480px; display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); align-items: stretch;
   height: calc(var(--tabbar) + var(--safe-bottom)); padding: 0 4px var(--safe-bottom);
   background: var(--surface); background: color-mix(in srgb, var(--surface) 92%, transparent);
   -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border-top: 1px solid var(--line);
@@ -182,7 +182,7 @@ h1.h-font { margin: 0; font-size: clamp(30px, 9vw, 38px); line-height: .92; lett
 .slot-k { font-size: 11px; font-weight: 600; color: var(--muted); }
 .slot-n { max-width: 100%; padding: 0 2px; font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .slot:not(.on) .slot-n { color: var(--muted); font-weight: 500; }
-.home-actions { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) 48px; gap: 8px; }
+.home-actions { display: grid; grid-template-columns: minmax(0,1fr) 48px; gap: 8px; }
 .home-actions .btn { padding: 0 10px; }
 
 /* téléphone en paysage : hauteur trop faible, on laisse défiler la page */
@@ -350,3 +350,47 @@ button.banner { border: none; width: calc(100% - 28px); text-align: left; cursor
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ---------- styliste (pixel art, façon jeu rétro) ---------- */
+.screen.sty { gap: 12px; }
+.sty-stage {
+  position: relative; flex: none; height: min(62vh, 520px); min-height: 360px; overflow: hidden;
+  border: 4px solid #0D0D0D; border-radius: 4px; background: #F2F1ED;
+}
+.sty-stage.small { height: min(50vh, 400px); min-height: 370px; }
+.sty-stage.small .sty-char { height: 38%; }
+.sty-bg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.sty-char {
+  position: absolute; left: 50%; bottom: 4%; height: 50%; width: auto; aspect-ratio: 20 / 32;
+  transform: translateX(-50%); animation: sty-bob 1.2s steps(2) infinite;
+}
+@keyframes sty-bob { 50% { transform: translateX(-50%) translateY(-1.5%); } }
+.sty-bubble {
+  position: absolute; left: 4%; right: 4%; top: 7%; padding: 14px 14px 22px;
+  background: #fff; color: #0D0D0D; border: 4px solid #0D0D0D; border-radius: 6px; cursor: pointer;
+  box-shadow: 4px 4px 0 rgba(13,13,13,.3);
+}
+/* pointe de la bulle, vers la tête */
+.sty-bubble::before, .sty-bubble::after { content: ""; position: absolute; left: 50%; top: 100%; width: 0; height: 0; transform: translateX(-50%); }
+.sty-bubble::before { border: 14px solid transparent; border-top-color: #0D0D0D; }
+.sty-bubble::after { border: 9px solid transparent; border-top-color: #fff; }
+.sty-name { position: absolute; top: -15px; left: 10px; padding: 4px 8px; background: #C8F135; color: #0D0D0D; border: 3px solid #0D0D0D; font: 9px/1.2 "Press Start 2P", monospace; }
+.sty-text { margin: 4px 0 0; font: 12px/1.8 "Press Start 2P", monospace; min-height: 3.6em; }
+.sty-more { position: absolute; right: 10px; bottom: 4px; font-size: 12px; animation: sty-blink 1s steps(1) infinite; }
+@keyframes sty-blink { 50% { opacity: 0; } }
+.sty-menu { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; }
+.sty-menu.result { grid-template-columns: 1fr 1fr; }
+.sty-opt {
+  position: relative; min-height: 52px; padding: 8px 10px 8px 24px; text-align: left;
+  background: #fff; color: #0D0D0D; border: 4px solid #0D0D0D; border-radius: 4px;
+  font: 11px/1.4 "Press Start 2P", monospace; box-shadow: 3px 3px 0 rgba(13,13,13,.3);
+}
+.sty-opt::before { content: "▶"; position: absolute; left: 8px; top: 50%; transform: translateY(-50%); font-size: 9px; opacity: 0; }
+.sty-opt:hover::before, .sty-opt:focus-visible::before { opacity: 1; }
+.sty-opt:hover, .sty-opt:focus-visible { background: #C8F135; }
+.sty-opt:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 rgba(13,13,13,.3); }
+.sty-opt:disabled { opacity: .5; }
+.stage2.look.sty-look { flex: none; height: 300px; }
+@media (prefers-reduced-motion: reduce) { .sty-char, .sty-more { animation: none; } }
+.tab .px-ico { image-rendering: pixelated; margin: -1px 0; }
+.tab:not([aria-current="page"]) .px-ico { opacity: .75; }
