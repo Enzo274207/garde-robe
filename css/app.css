@@ -401,6 +401,7 @@ button.banner { border: none; width: calc(100% - 28px); text-align: left; cursor
 .sty-opt:hover, .sty-opt:focus-visible { background: #C8F135; }
 .sty-opt:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 rgba(13,13,13,.3); }
 .sty-opt:disabled { opacity: .5; }
+.sty-opt.wide { grid-column: 1 / -1; min-height: 40px; font-size: 9px; background: transparent; box-shadow: none; border-width: 3px; }
 .stage2.look.sty-look { flex: none; height: 300px; }
 @media (prefers-reduced-motion: reduce) { .sty-char, .sty-more { animation: none; } }
 .tab .px-ico { image-rendering: pixelated; margin: -1px 0; }

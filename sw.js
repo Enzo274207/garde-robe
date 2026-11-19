@@ -8,7 +8,7 @@ const VERSION = 'garderobe-v23';
 const SHELL = VERSION + '-app';
 const LIBS = 'garderobe-libs-v1';
 const PHOTOS = 'garderobe-photos';
-const FILES = ['./', './index.html', './css/app.css', './js/app.js', './js/catalog.js', './js/draw.js', './js/store.js', './js/sync.js', './js/image.js', './js/flatlay.js', './js/cutout.js', './js/stylist.js', './js/config.js', './manifest.webmanifest', './icons/icon.svg', './icons/apple-touch-icon.png', './icons/icon-192.png', './icons/icon-512.png'];
+const FILES = ['./', './index.html', './css/app.css', './js/app.js', './js/catalog.js', './js/draw.js', './js/store.js', './js/sync.js', './js/image.js', './js/flatlay.js', './js/cutout.js', './js/stylist.js', './js/weather.js', './js/config.js', './manifest.webmanifest', './icons/icon.svg', './icons/apple-touch-icon.png', './icons/icon-192.png', './icons/icon-512.png'];
 const NETWORK_TIMEOUT = 4000;
 
 self.addEventListener('install', (e) => {

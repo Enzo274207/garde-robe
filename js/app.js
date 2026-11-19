@@ -6,6 +6,7 @@ import { demo, online, isDemo, today, accessoryIds, stripItem } from './store.js
 import { createSync } from './sync.js';
 import { compressImage } from './image.js';
 import { STYLIST_NAME, stylistSprite, stylistIcon, stylistScene, composeOutfit, WEATHER, VIBE } from './stylist.js';
+import { todayWeather, weatherLine } from './weather.js';
 
 /* ---------------- icônes ---------------- */
 const P = {
@@ -356,11 +357,33 @@ function viewHome() {
 /* ---------------- styliste ---------------- */
 const STY_ASK = {
   hello: `Salut ! Moi c’est ${STYLIST_NAME}, ta styliste. Je te compose une tenue avec tes propres pièces ?`,
+  meteo: 'Attends, je regarde la météo chez toi…',
   weather: 'Dis-moi, il fait comment dehors aujourd’hui ?',
+  noMeteo: 'Je n’arrive pas à voir la météo d’ici. Dis-moi, il fait comment dehors aujourd’hui ?',
   vibe: 'Et tu veux une tenue de quel genre ?',
   empty: 'Il me faut au moins un haut et un bas dans ta garde-robe pour travailler !'
 };
-function stylistText() { const t = S.sty; return t.step === 'result' ? t.line : STY_ASK[t.step]; }
+function stylistText() {
+  const t = S.sty;
+  if (t.step === 'result') return t.line;
+  if (t.step === 'weather' && t.noMeteo) return STY_ASK.noMeteo;
+  if (t.step === 'vibe' && t.meteo) return weatherLine(t.meteo) + ' ' + STY_ASK.vibe;
+  return STY_ASK[t.step];
+}
+// Christina regarde elle-même la météo ; si la position est refusée ou hors ligne, elle demande
+async function styMeteo() {
+  const t = S.sty;
+  t.step = 'meteo'; render();
+  try {
+    const w = await todayWeather();
+    if (S.sty !== t || t.step !== 'meteo') return;
+    t.meteo = w; t.weather = w.weather; t.step = 'vibe';
+  } catch (e) {
+    if (S.sty !== t || t.step !== 'meteo') return;
+    t.noMeteo = true; t.step = 'weather';
+  }
+  if (S.route.name === 'stylist') render();
+}
 function viewStylist() {
   const t = S.sty || (S.sty = { step: 'hello', seen: new Set(), typed: '' });
   const text = stylistText();
@@ -368,7 +391,7 @@ function viewStylist() {
   let menu = '';
   if (t.step === 'hello') menu = opt('styGo', '', 'C’est parti !');
   else if (t.step === 'weather') menu = Object.entries(WEATHER).map(([k, l]) => opt('styWeather', k, l)).join('');
-  else if (t.step === 'vibe') menu = Object.entries(VIBE).map(([k, l]) => opt('styVibe', k, l)).join('');
+  else if (t.step === 'vibe') menu = Object.entries(VIBE).map(([k, l]) => opt('styVibe', k, l)).join('') + (t.meteo ? '<button class="sty-opt wide" data-act="styOverride">Changer la météo</button>' : '');
   else if (t.step === 'empty') menu = opt('openImport', '', 'Importer une pièce');
   const wornToday = S.wears.find((w) => w.worn_on === today());
   const isWorn = t.step === 'result' && wornToday && wornToday.top_id === S.sel.haut && wornToday.bottom_id === S.sel.bas && wornToday.shoes_id === S.sel.chaussures && (wornToday.jacket_id || null) === (S.sel.veste || null);
@@ -820,11 +843,12 @@ const actions = {
   authMode() { S.authMode = S.authMode === 'login' ? 'signup' : 'login'; S.authErr = ''; S.authInfo = ''; render(); },
   async retry() { S.ready = false; await boot(); },
   step(el) { step(el.dataset.cat, Number(el.dataset.d)); },
-  styGo() { const t = S.sty; t.step = byCat('haut').length && byCat('bas').length ? 'weather' : 'empty'; render(); },
-  styWeather(el) { S.sty.weather = el.dataset.v; S.sty.step = 'vibe'; render(); },
+  styGo() { if (byCat('haut').length && byCat('bas').length) styMeteo(); else { S.sty.step = 'empty'; render(); } },
+  styWeather(el) { S.sty.weather = el.dataset.v; S.sty.meteo = null; S.sty.step = 'vibe'; render(); },
+  styOverride() { S.sty.meteo = null; S.sty.noMeteo = false; S.sty.step = 'weather'; render(); },
   styVibe(el) { S.sty.vibe = el.dataset.v; styCompose(); render(); },
   styAgain() { styCompose(); render(); },
-  styRestart() { S.sty = { step: 'weather', seen: new Set(), typed: '' }; render(); },
+  styRestart() { S.sty = { step: 'hello', seen: new Set(), typed: '' }; actions.styGo(); },
   stySkip() { clearInterval(typeTimer); const el = document.querySelector('.sty-text[data-type]'); if (el && S.sty) { S.sty.typed = el.dataset.type; el.textContent = el.dataset.type; } },
   theme() { applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); render(); },
   openPick(el) { S.sheet = { kind: 'pick', cat: el.dataset.cat }; render(); },
