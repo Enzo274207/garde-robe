@@ -5,7 +5,7 @@ import { cutout, isCutPath } from './cutout.js';
 import { demo, online, isDemo, today } from './store.js';
 import { createSync } from './sync.js';
 import { compressImage } from './image.js';
-import { STYLIST_NAME, stylistSprite, stylistIcon, stylistScene, composeOutfit, WEATHER, VIBE } from './stylist.js';
+import { STYLIST_NAME, stylistSprite, stylistScene, composeOutfit, WEATHER, VIBE } from './stylist.js';
 
 /* ---------------- icônes ---------------- */
 const P = {
@@ -31,7 +31,8 @@ const P = {
   hanger: 'M10 5a2 2 0 1 1 2 2v1.5L3.4 14.6c-.9.6-.5 1.9.6 1.9h16c1.1 0 1.5-1.3.6-1.9L12 8.5',
   moon: 'M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z',
   logout: 'M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10',
-  chev: 'M9 6l6 6-6 6'
+  chev: 'M9 6l6 6-6 6',
+  stylist: 'M13.5 9a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zM5.5 13.5V9a4.5 4.5 0 0 1 9 0v4.5M3.5 21c.6-3.6 3.2-5.6 6.5-5.6s5.9 2 6.5 5.6M16 3h5.5v4.5h-3L17 9V7.5h-1z'
 };
 const ico = (k, size = 22, sw = 1.7, fill = 'none') => `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${fill}" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"><path d="${P[k]}"/></svg>`;
 const col = (hex) => safeColor(hex);
@@ -239,7 +240,7 @@ function viewAuth() {
 /* ---------------- barre d'onglets ---------------- */
 function tabBar() {
   const r = S.route.name, cur = r === 'cat' ? 'wardrobe' : r;
-  const tab = (key, href, icon, label) => `<a class="tab" href="${href}" ${cur === key ? 'aria-current="page"' : ''}>${icon === 'stylist' ? stylistIcon(22) : ico(icon, 22, 1.9)}<span>${label}</span></a>`;
+  const tab = (key, href, icon, label) => `<a class="tab" href="${href}" ${cur === key ? 'aria-current="page"' : ''}>${ico(icon, 22, 1.9)}<span>${label}</span></a>`;
   return `<nav class="tabbar" aria-label="Navigation principale">
     ${tab('home', '#/', 'haut', 'Tenue')}${tab('wardrobe', '#/garde-robe', 'hanger', 'Garde-robe')}
     <button class="tab add" data-act="openImport" aria-label="Importer une pièce"><span>${ico('plus', 26, 2.4)}</span></button>

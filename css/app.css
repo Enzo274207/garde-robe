@@ -352,11 +352,10 @@ button.banner { border: none; width: calc(100% - 28px); text-align: left; cursor
 }
 
 /* ---------- styliste (pixel art, façon jeu rétro) ---------- */
-.tab svg[shape-rendering] { image-rendering: pixelated; }
 .screen.sty { gap: 12px; }
 .sty-stage {
   position: relative; flex: none; height: min(62vh, 520px); min-height: 360px; overflow: hidden;
-  border: 4px solid #1B1A2E; border-radius: 4px; background: #F3D9C4;
+  border: 4px solid #0D0D0D; border-radius: 4px; background: #F2F1ED;
 }
 .sty-stage.small { height: min(50vh, 400px); min-height: 370px; }
 .sty-stage.small .sty-char { height: 38%; }
@@ -368,14 +367,14 @@ button.banner { border: none; width: calc(100% - 28px); text-align: left; cursor
 @keyframes sty-bob { 50% { transform: translateX(-50%) translateY(-1.5%); } }
 .sty-bubble {
   position: absolute; left: 4%; right: 4%; top: 7%; padding: 14px 14px 22px;
-  background: #fff; color: #1B1A2E; border: 4px solid #1B1A2E; border-radius: 6px; cursor: pointer;
-  box-shadow: 4px 4px 0 rgba(27,26,46,.35);
+  background: #fff; color: #0D0D0D; border: 4px solid #0D0D0D; border-radius: 6px; cursor: pointer;
+  box-shadow: 4px 4px 0 rgba(13,13,13,.3);
 }
 /* pointe de la bulle, vers la tête */
 .sty-bubble::before, .sty-bubble::after { content: ""; position: absolute; left: 50%; top: 100%; width: 0; height: 0; transform: translateX(-50%); }
-.sty-bubble::before { border: 14px solid transparent; border-top-color: #1B1A2E; }
+.sty-bubble::before { border: 14px solid transparent; border-top-color: #0D0D0D; }
 .sty-bubble::after { border: 9px solid transparent; border-top-color: #fff; }
-.sty-name { position: absolute; top: -15px; left: 10px; padding: 4px 8px; background: #C0283A; color: #fff; border: 3px solid #1B1A2E; font: 9px/1.2 "Press Start 2P", monospace; }
+.sty-name { position: absolute; top: -15px; left: 10px; padding: 4px 8px; background: #C8F135; color: #0D0D0D; border: 3px solid #0D0D0D; font: 9px/1.2 "Press Start 2P", monospace; }
 .sty-text { margin: 4px 0 0; font: 12px/1.8 "Press Start 2P", monospace; min-height: 3.6em; }
 .sty-more { position: absolute; right: 10px; bottom: 4px; font-size: 12px; animation: sty-blink 1s steps(1) infinite; }
 @keyframes sty-blink { 50% { opacity: 0; } }
@@ -383,12 +382,13 @@ button.banner { border: none; width: calc(100% - 28px); text-align: left; cursor
 .sty-menu.result { grid-template-columns: 1fr 1fr; }
 .sty-opt {
   position: relative; min-height: 52px; padding: 8px 10px 8px 24px; text-align: left;
-  background: #fff; color: #1B1A2E; border: 4px solid #1B1A2E; border-radius: 4px;
-  font: 11px/1.4 "Press Start 2P", monospace; box-shadow: 3px 3px 0 rgba(27,26,46,.35);
+  background: #fff; color: #0D0D0D; border: 4px solid #0D0D0D; border-radius: 4px;
+  font: 11px/1.4 "Press Start 2P", monospace; box-shadow: 3px 3px 0 rgba(13,13,13,.3);
 }
 .sty-opt::before { content: "▶"; position: absolute; left: 8px; top: 50%; transform: translateY(-50%); font-size: 9px; opacity: 0; }
 .sty-opt:hover::before, .sty-opt:focus-visible::before { opacity: 1; }
-.sty-opt:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 rgba(27,26,46,.35); }
+.sty-opt:hover, .sty-opt:focus-visible { background: #C8F135; }
+.sty-opt:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 rgba(13,13,13,.3); }
 .sty-opt:disabled { opacity: .5; }
 .stage2.look.sty-look { flex: none; height: 300px; }
 @media (prefers-reduced-motion: reduce) { .sty-char, .sty-more { animation: none; } }

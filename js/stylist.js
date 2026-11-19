@@ -62,28 +62,37 @@ function pixels(rows, ink) {
 export function stylistSprite(cls = '') {
   return `<svg class="${cls}" viewBox="0 0 20 32" shape-rendering="crispEdges" aria-hidden="true">${pixels(SPRITE, INK)}</svg>`;
 }
-// Petite tête pour l'onglet (8 × 8)
-const HEAD = ['.KKKKKK.', 'KHHHHHHK', 'KHSSSSHK', 'KGGSSGGK', 'KSSSSSSK', 'KHSLLSHK', '.KSSSSK.', 'KBBPPBBK'];
-export function stylistIcon(size = 22) {
-  return `<svg width="${size}" height="${size}" viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true">${pixels(HEAD, INK)}</svg>`;
-}
-
-// Décor : une boutique (mur rayé, miroir, portant de vêtements, parquet en damier). 64 × 80.
+// Décor : un dressing streetwear aux couleurs de l'app (blanc cassé, noir, vert acide). 64 × 80.
 export function stylistScene() {
   let r = '';
   const px = (x, y, w, h, c) => { r += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${c}"/>`; };
-  px(0, 0, 64, 56, '#F3D9C4');
-  for (let x = 0; x < 64; x += 8) px(x, 0, 4, 56, '#EDCBB2');
-  px(0, 52, 64, 4, '#B9784F');                                   // plinthe
-  for (let y = 56; y < 80; y += 4) for (let x = 0; x < 64; x += 4) px(x, y, 4, 4, ((x + y) / 4) % 2 ? '#7E4A33' : '#9A5D41');
-  // miroir à gauche
-  px(4, 10, 14, 30, '#C79A3D'); px(6, 12, 10, 26, '#BFE3EA'); px(8, 14, 2, 10, '#E9F7FA'); px(11, 16, 1, 6, '#E9F7FA');
-  // portant à droite
-  px(44, 14, 18, 2, '#6B6B7A'); px(45, 14, 1, 38, '#6B6B7A'); px(60, 14, 1, 38, '#6B6B7A'); px(43, 51, 20, 1, '#6B6B7A');
-  [['#C8F135', 46], ['#2E3BD6', 50], ['#C0283A', 54], ['#1B1A2E', 57]].forEach(([c, x]) => { px(x + 1, 16, 1, 2, '#6B6B7A'); px(x, 18, 4, 14, c); px(x - 1, 18, 1, 5, c); px(x + 4, 18, 1, 5, c); });
-  // lampe et étoiles décoratives
-  px(28, 0, 8, 2, '#6B6B7A'); px(30, 2, 4, 3, '#FFE38A');
-  [[22, 8], [40, 6], [26, 30], [38, 26]].forEach(([x, y]) => { px(x, y, 1, 1, '#FFFFFF'); px(x - 1, y + 1, 3, 1, '#FFFFFF'); px(x, y + 2, 1, 1, '#FFFFFF'); });
+  const INKS = { bg: '#F2F1ED', wall2: '#E6E4DE', line: '#D6D3CB', ink: '#0D0D0D', grey: '#5C5A55', acid: '#C8F135', white: '#FFFFFF', steel: '#8F8C84' };
+  // mur en carreaux de béton
+  px(0, 0, 64, 54, INKS.bg);
+  for (let y = 0; y < 54; y += 9) for (let x = (y / 9) % 2 ? -6 : 0; x < 64; x += 12) { px(x, y, 12, 1, INKS.line); px(x, y, 1, 9, INKS.line); }
+  // bande vert acide
+  px(0, 4, 64, 2, INKS.acid);
+  // étagères à baskets (gauche et droite)
+  [[2, 30], [2, 41], [2, 19], [52, 30], [52, 41], [52, 19]].forEach(([x, y], i) => {
+    px(x, y + 6, 10, 1, INKS.ink);
+    const c1 = [INKS.white, INKS.acid, INKS.ink, INKS.white, INKS.ink, INKS.acid][i];
+    px(x + 1, y + 3, 4, 3, c1); px(x + 1, y + 5, 4, 1, c1 === INKS.ink ? INKS.white : INKS.ink);
+    px(x + 6, y + 2, 3, 4, INKS.grey); px(x + 6, y + 2, 3, 1, INKS.ink);
+  });
+  // portant noir au centre avec sweats et t-shirts
+  px(14, 32, 36, 1, INKS.ink); px(14, 32, 1, 21, INKS.ink); px(49, 32, 1, 21, INKS.ink); px(12, 52, 40, 1, INKS.ink);
+  [[16, INKS.ink], [21, INKS.acid], [26, INKS.white], [37, INKS.grey], [42, INKS.ink], [46, INKS.white]].forEach(([x, c]) => {
+    px(x + 1, 33, 1, 1, INKS.steel);
+    px(x, 34, 4, 13, c); px(x - 1, 34, 1, 6, c); px(x + 4, 34, 1, 6, c);
+    if (c === INKS.white) { px(x, 34, 4, 1, INKS.line); px(x - 1, 34, 1, 6, INKS.line); }
+    if (c === INKS.ink) px(x + 1, 38, 2, 1, INKS.acid);              // petit logo
+  });
+  // sol en béton foncé avec marquage vert
+  px(0, 54, 64, 26, '#2A2A28');
+  for (let x = 0; x < 64; x += 8) px(x, 54, 1, 26, '#333331');
+  px(0, 54, 64, 1, INKS.ink); px(0, 60, 64, 1, INKS.acid);
+  // tapis sous la styliste
+  px(20, 71, 24, 7, '#3A3A37'); px(20, 71, 24, 1, INKS.acid);
   return `<svg class="sty-bg" viewBox="0 0 64 80" preserveAspectRatio="xMidYMax slice" shape-rendering="crispEdges" aria-hidden="true">${r}</svg>`;
 }
 
@@ -197,5 +206,5 @@ function explain(ctx, top, bottom, jacket, items) {
   const sleepy = [top, bottom, jacket].filter(Boolean).find((i) => !i.wear_count && items.length > 4);
   if (sleepy) out.push(`On ressort ${sleepy.name.toLowerCase()}, jamais porté·e jusqu’ici.`);
   const intro = { cool: 'Décontracté mais stylé.', normal: 'Simple et efficace.', habille: 'Très chic, tout ça.' }[ctx.vibe];
-  return [intro, ...out.slice(0, 2)].join(' ');
+  return [intro, ...out.slice(0, 1)].join(' ');
 }
