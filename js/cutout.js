@@ -3,6 +3,8 @@
 // lui ressemblent (dégradés et ombres douces compris). Le vêtement, qui ne touche pas le fond, reste opaque.
 // Fonctionne bien sur fond uni (drap, mur, sol, photo produit) ; sur un fond chargé, on le signale.
 
+import { encodeCutout } from './image.js';
+
 const MAX_SIDE = 1100;          // taille de travail (px)
 const MAX_BYTES = 4.8 * 1024 * 1024;
 
@@ -16,7 +18,6 @@ async function load(blob) {
     });
   }
 }
-const toBlob = (canvas, type, q) => new Promise((res) => canvas.toBlob(res, type, q));
 
 /**
  * @returns {Promise<{ok: true, blob: Blob, coverage: number} | {ok: false, reason: string}>}
@@ -46,7 +47,7 @@ export async function cutout(blob, max = MAX_SIDE, sens = 1) {
     x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(W - 1, x1 + pad); y1 = Math.min(H - 1, y1 + pad);
     const o = document.createElement('canvas'); o.width = x1 - x0 + 1; o.height = y1 - y0 + 1;
     o.getContext('2d').drawImage(cv, x0, y0, o.width, o.height, 0, 0, o.width, o.height);
-    let r = await toBlob(o, 'image/webp', 0.9); if (!r || r.type !== 'image/webp') r = await toBlob(o, 'image/png');
+    const r = await encodeCutout(o);
     return r ? { ok: true, blob: r, coverage: fg / N, rgb: sn ? [sr / sn, sg / sn, sb / sn].map(Math.round) : null, bg: null } : { ok: false, reason: 'Export de l’image impossible.' };
   }
 
@@ -210,8 +211,7 @@ export async function cutout(blob, max = MAX_SIDE, sens = 1) {
   x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(W - 1, x1 + pad); y1 = Math.min(H - 1, y1 + pad);
   const out = document.createElement('canvas'); out.width = x1 - x0 + 1; out.height = y1 - y0 + 1;
   out.getContext('2d').drawImage(cv, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
-  let res = await toBlob(out, 'image/webp', 0.9);
-  if (!res || res.type !== 'image/webp') res = await toBlob(out, 'image/png');   // Safari : PNG
+  const res = await encodeCutout(out);   // WebP (Safari compris, via l'encodeur embarqué) ; PNG en dernier recours
   if (!res) return { ok: false, reason: 'Export de l’image impossible.' };
   if (res.size > MAX_BYTES && max > 700) return cutout(blob, Math.round(max * 0.75), sens);
   const rgb = sn ? [sr / sn, sg / sn, sb / sn].map(Math.round) : null;   // couleur moyenne du vêtement
