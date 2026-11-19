@@ -22,6 +22,27 @@ const toBlob = (canvas, type, q) => new Promise((res) => canvas.toBlob(res, type
  * @returns {Promise<{ok: true, blob: Blob, coverage: number} | {ok: false, reason: string}>}
  */
 export async function cutout(blob, max = MAX_SIDE, sens = 1) {
+  // 1er essai : modèle IA (gratuit, exécuté sur l'appareil, téléchargé une fois puis gardé en cache).
+  // Le PNG transparent obtenu repasse dans la méthode classique, qui le recadre et calcule couleur et surface.
+  if (max === MAX_SIDE && sens === 1) {
+    try {
+      const ai = await aiCutout(blob);
+      if (ai) { const r = await classicCutout(ai); if (r.ok && r.coverage > 0.01) return r; }
+    } catch (e) { console.warn('Détourage IA indisponible, méthode classique', e); }
+  }
+  return classicCutout(blob, max, sens);
+}
+
+const AI_LIB = 'https://esm.sh/@imgly/background-removal@1.7.0';
+let aiLib = null;
+async function aiCutout(blob) {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false && !aiLib) return null;
+  aiLib = aiLib || import(AI_LIB);
+  const { removeBackground } = await aiLib.catch((e) => { aiLib = null; throw e; });
+  return removeBackground(blob, { model: 'isnet_quint8', output: { format: 'image/png' } });
+}
+
+async function classicCutout(blob, max = MAX_SIDE, sens = 1) {
   const src = await load(blob);
   const k = Math.min(1, max / Math.max(src.width, src.height));
   const W = Math.max(1, Math.round(src.width * k)), H = Math.max(1, Math.round(src.height * k)), N = W * H;
@@ -197,7 +218,7 @@ export async function cutout(blob, max = MAX_SIDE, sens = 1) {
   }
   const coverage = fg / N;
   if (coverage < 0.06 && sens === 1) {   // pièce petite ou proche de la couleur du fond : 2e essai plus sensible, on garde le meilleur
-    const alt = await cutout(blob, max, 0.55);
+    const alt = await classicCutout(blob, max, 0.55);
     if (alt.ok && alt.coverage > coverage * 1.15 && alt.coverage < 0.6) return alt;
     if (coverage < 0.02) return alt;
   }
@@ -213,7 +234,7 @@ export async function cutout(blob, max = MAX_SIDE, sens = 1) {
   let res = await toBlob(out, 'image/webp', 0.9);
   if (!res || res.type !== 'image/webp') res = await toBlob(out, 'image/png');   // Safari : PNG
   if (!res) return { ok: false, reason: 'Export de l’image impossible.' };
-  if (res.size > MAX_BYTES && max > 700) return cutout(blob, Math.round(max * 0.75), sens);
+  if (res.size > MAX_BYTES && max > 700) return classicCutout(blob, Math.round(max * 0.75), sens);
   const rgb = sn ? [sr / sn, sg / sn, sb / sn].map(Math.round) : null;   // couleur moyenne du vêtement
   return { ok: true, blob: res, coverage, rgb, bg };
 }
