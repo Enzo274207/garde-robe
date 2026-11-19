@@ -392,3 +392,5 @@ button.banner { border: none; width: calc(100% - 28px); text-align: left; cursor
 .sty-opt:disabled { opacity: .5; }
 .stage2.look.sty-look { flex: none; height: 300px; }
 @media (prefers-reduced-motion: reduce) { .sty-char, .sty-more { animation: none; } }
+.tab .px-ico { image-rendering: pixelated; margin: -1px 0; }
+.tab:not([aria-current="page"]) .px-ico { opacity: .75; }

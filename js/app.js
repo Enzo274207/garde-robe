@@ -5,7 +5,7 @@ import { cutout, isCutPath } from './cutout.js';
 import { demo, online, isDemo, today } from './store.js';
 import { createSync } from './sync.js';
 import { compressImage } from './image.js';
-import { STYLIST_NAME, stylistSprite, stylistScene, composeOutfit, WEATHER, VIBE } from './stylist.js';
+import { STYLIST_NAME, stylistSprite, stylistIcon, stylistScene, composeOutfit, WEATHER, VIBE } from './stylist.js';
 
 /* ---------------- icônes ---------------- */
 const P = {
@@ -240,7 +240,7 @@ function viewAuth() {
 /* ---------------- barre d'onglets ---------------- */
 function tabBar() {
   const r = S.route.name, cur = r === 'cat' ? 'wardrobe' : r;
-  const tab = (key, href, icon, label) => `<a class="tab" href="${href}" ${cur === key ? 'aria-current="page"' : ''}>${ico(icon, 22, 1.9)}<span>${label}</span></a>`;
+  const tab = (key, href, icon, label) => `<a class="tab" href="${href}" ${cur === key ? 'aria-current="page"' : ''}>${icon === 'stylist' ? stylistIcon(24) : ico(icon, 22, 1.9)}<span>${label}</span></a>`;
   return `<nav class="tabbar" aria-label="Navigation principale">
     ${tab('home', '#/', 'haut', 'Tenue')}${tab('wardrobe', '#/garde-robe', 'hanger', 'Garde-robe')}
     <button class="tab add" data-act="openImport" aria-label="Importer une pièce"><span>${ico('plus', 26, 2.4)}</span></button>

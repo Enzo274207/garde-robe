@@ -62,6 +62,25 @@ function pixels(rows, ink) {
 export function stylistSprite(cls = '') {
   return `<svg class="${cls}" viewBox="0 0 20 32" shape-rendering="crispEdges" aria-hidden="true">${pixels(SPRITE, INK)}</svg>`;
 }
+// Mini tête pour l'onglet (12 × 12) : lunettes rouges, verres blancs, pupilles noires
+const HEAD = [
+  '...KKKKKK...',
+  '.KKHHHHHHKK.',
+  'KHHhHHHHHHHK',
+  'KHHHHHHHHHHK',
+  'KHHSSSSSSHHK',
+  'KHSGGSSGGSHK',
+  'KHGWEGGEWGHK',
+  'KHSGGSSGGSHK',
+  'KHSSSssSSSHK',
+  'KHSCSLLSCSHK',
+  '.KHSSSSSSHK.',
+  '.KBBBPPBBBK.'
+];
+export function stylistIcon(size = 24) {
+  return `<svg class="px-ico" width="${size}" height="${size}" viewBox="0 0 12 12" shape-rendering="crispEdges" aria-hidden="true">${pixels(HEAD, INK)}</svg>`;
+}
+
 // Décor : un dressing streetwear aux couleurs de l'app (blanc cassé, noir, vert acide). 64 × 80.
 export function stylistScene() {
   let r = '';
