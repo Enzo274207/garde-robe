@@ -1,4 +1,4 @@
-import { CATEGORIES, CAT_ORDER, ACC_SIZE, MAX_ACC, PALETTE, AV, DEFAULT_AVATAR, SEASONS, STYLES, WARMTH, FORMALITY, isNeutral, safeColor } from './catalog.js';
+import { CATEGORIES, CAT_ORDER, ACC_SIZE, MAX_ACC, PALETTE, AV, DEFAULT_AVATAR, SEASONS, STYLES, WARMTH, FORMALITY, isNeutral, safeColor, isShort } from './catalog.js';
 import { faceSVG, garmentSVG, esc } from './draw.js';
 import { flatlaySVG } from './flatlay.js';
 import { cutout, isCutPath } from './cutout.js';
@@ -318,9 +318,15 @@ function lookAccessories([x, y, w, h], room) {
       aria-label="Accessoire : ${esc(it.name)}. Toucher pour changer les accessoires">${vis}</button>`;
   }).join('')}</div>`;
 }
+// Avec un short : le bas est moitié moins haut et les chaussures se posent juste en dessous (la paire est centrée dans sa case), sans le chevaucher
+function shortLook(L) {
+  const [bx, by, bw, bh] = L.bas, sh = Math.round(bh * 0.6), [cx, , cw, ch] = L.chaussures;
+  return { ...L, bas: [bx, by, bw, sh, 0], chaussures: [cx, Math.min(by + sh - 4, 100 - ch), cw, ch, 0] };
+}
 function lookBoard() {
   const jacket = !!(S.sel.veste && item(S.sel.veste));
-  const L = jacket ? LOOK.withJacket : S.sel.accessoire.some(item) ? LOOK.noJacket : LOOK.alone;
+  let L = jacket ? LOOK.withJacket : S.sel.accessoire.some(item) ? LOOK.noJacket : LOOK.alone;
+  if (isShort(item(S.sel.bas))) L = shortLook(L);
   const pieces = Object.entries(L).map(([cat, [x, y, w, h, rot]]) => {
     if (cat === 'accessoire') return lookAccessories([x, y, w, h], ACC_ROOM[jacket ? 'withJacket' : 'noJacket']);
     const it = item(S.sel[cat]); if (!it) return '';

@@ -1,7 +1,7 @@
 // Styliste : personnage en pixel art, décor de boutique et choix de la tenue.
 // Tout est calculé sur l'appareil, sans IA externe. Rien n'est enregistré ici :
 // la tenue proposée remplit seulement la sélection de l'accueil.
-import { isNeutral, isDark } from './catalog.js';
+import { isNeutral, isDark, isShort } from './catalog.js';
 
 export const STYLIST_NAME = 'Christina Cordula';
 
@@ -191,8 +191,11 @@ const UNDER = /t-shirt|tee|débardeur|polo/i;
  */
 export function composeOutfit(items, wears, ctx, seen = new Set()) {
   const by = (c) => items.filter((i) => i.category === c);
-  const H = by('haut'), B = by('bas'), V = by('veste'), C = by('chaussures'), A = by('accessoire');
-  if (!H.length || !B.length) return null;
+  const H = by('haut'), all = by('bas'), V = by('veste'), C = by('chaussures'), A = by('accessoire');
+  if (!H.length || !all.length) return null;
+  // Short : jamais quand il fait froid (sauf s'il n'y a que ça), plutôt quand il fait chaud
+  const B = ctx.weather === 'froid' && all.some((b) => !isShort(b)) ? all.filter((b) => !isShort(b)) : all;
+  const shortBonus = (b) => (isShort(b) ? { froid: -6, doux: -1.5, chaud: 2.5 }[ctx.weather] : 0);
   // Une veste rangée dans les hauts se porte par-dessus, pas seule : on garde les autres hauts pour dessous
   const T = H.filter((i) => !OVER_ONLY.test(i.type || '')).length ? H.filter((i) => !OVER_ONLY.test(i.type || '')) : H;
   const maxWear = Math.max(1, ...items.map((i) => i.wear_count || 0));
@@ -204,7 +207,7 @@ export function composeOutfit(items, wears, ctx, seen = new Set()) {
   let top, bottom, tries = 0;
   do {
     top = pickTop(T, (it) => fitScore(it, c));
-    bottom = pickTop(B, (b) => fitScore(b, c) + pairScore(top, b) + proportion(top, b));
+    bottom = pickTop(B, (b) => fitScore(b, c) + pairScore(top, b) + proportion(top, b) + shortBonus(b));
     tries++;
   } while (seen.has(top.id + '|' + bottom.id) && tries < 12);
   seen.add(top.id + '|' + bottom.id);
@@ -255,5 +258,6 @@ function explain(ctx, top, bottom, jacket, items) {
   const sleepy = [top, bottom, jacket].filter(Boolean).find((i) => !i.wear_count && items.length > 4);
   if (sleepy) out.push(`On ressort ${sleepy.name.toLowerCase()}, jamais porté·e jusqu’ici.`);
   const intro = { cool: 'Décontracté mais stylé.', normal: 'Simple et efficace.', habille: 'Très chic, tout ça.' }[ctx.vibe];
+  if (isShort(bottom) && ctx.weather === 'chaud') out.unshift('Un short, il fait chaud : profites-en !');
   return [intro, ...out.slice(0, 1)].join(' ');
 }
