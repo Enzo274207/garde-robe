@@ -4,7 +4,7 @@
 // - Photos (liens signés Supabase) : cache d'abord, indexées sans le jeton du lien,
 //   pour rester visibles hors connexion même quand le lien a expiré. Cache vidé à la déconnexion.
 // - Les données (API Supabase) ne passent jamais par ce cache : elles sont gérées par l'app.
-const VERSION = 'garderobe-v30';
+const VERSION = 'garderobe-v31';
 const SHELL = VERSION + '-app';
 const LIBS = 'garderobe-libs-v1';
 const PHOTOS = 'garderobe-photos';
