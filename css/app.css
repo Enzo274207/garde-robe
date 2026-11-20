@@ -307,6 +307,24 @@ h1.h-font { margin: 0; font-size: clamp(30px, 9vw, 38px); line-height: .92; lett
 .cut-msg { margin: 0; font-size: 12px; line-height: 1.35; color: var(--danger); }
 .photo-slot .x { position: absolute; top: 4px; right: 4px; z-index: 2; width: 44px; height: 44px; border-radius: 50%; border: none; background: rgba(0,0,0,.72); color: #fff; display: flex; align-items: center; justify-content: center; padding: 0; }
 .face-preview { align-self: center; width: 132px; height: 132px; border-radius: var(--r-lg); background: var(--chip); overflow: hidden; flex-shrink: 0; }
+.face-preview svg, .pf-face svg, .auth-face svg { display: block; }
+.auth-face { display: inline-block; width: 64px; height: 64px; border-radius: 18px; overflow: hidden; }
+/* ---------- éditeur d'avatar ---------- */
+.av-sheet { height: 92vh; height: 92dvh; max-height: 92dvh; }
+.av-stage { display: flex; gap: 14px; align-items: center; padding: 0 20px 10px; }
+.av-side { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.av-side .btn { width: 100%; }
+.av-tabs { display: flex; gap: 8px; overflow-x: auto; padding: 2px 20px 10px; scrollbar-width: none; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+.av-tabs::-webkit-scrollbar { display: none; }
+.av-sheet .sheet-body { flex: 1; padding-top: 14px; }
+.av-grid { display: grid; gap: 8px; margin-top: 8px; }
+.av-grid.c4 { grid-template-columns: repeat(4, 1fr); }
+.av-grid.c3 { grid-template-columns: repeat(3, 1fr); }
+.av-opt { display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 4px 4px 6px; border-radius: 14px; border: 1px solid var(--line2); background: var(--surface); color: var(--fg); font-size: 11.5px; font-weight: 500; line-height: 1.15; text-align: center; min-height: 44px; }
+.av-opt svg { width: 100%; height: auto; border-radius: 10px; display: block; background: var(--chip); }
+.av-opt span { overflow-wrap: anywhere; }
+.av-opt[aria-pressed="true"] { border-color: var(--fg); box-shadow: 0 0 0 1.5px var(--fg); font-weight: 700; }
+.av-note { margin: 0; font-size: 13px; color: var(--muted); }
 @keyframes fade { from { opacity: 0 } }
 @keyframes up { from { transform: translateY(40px); opacity: .6 } }
 
