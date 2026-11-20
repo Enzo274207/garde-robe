@@ -4,7 +4,7 @@ import { flatlaySVG } from './flatlay.js';
 import { cutout, isCutPath } from './cutout.js';
 import { retouch } from './retouch.js';
 import { pickColor } from './colorpick.js';
-import { demo, online, isDemo, today, accessoryIds, stripItem } from './store.js';
+import { demo, online, isDemo, today, accessoryIds, stripItem, isNetworkError } from './store.js';
 import { createSync } from './sync.js';
 import { compressImage } from './image.js';
 import { STYLIST_NAME, stylistSprite, stylistIcon, stylistScene, composeOutfit, WEATHER, VIBE } from './stylist.js';
@@ -628,13 +628,18 @@ function copyMeta(it) {
   return meta;
 }
 // Télécharge la photo de l'ami pour en faire une nouvelle photo à soi (son fichier n'est jamais touché).
+// En ligne, on passe par le stockage Supabase (et non par le lien affiché : la copie mise en cache
+// pour l'affichage ne peut pas être relue par l'app, ce qui faisait échouer la copie).
 const PHOTO_TYPES = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
 async function photoBlob(url, path) {
-  if (!url) return null;
-  let res;
-  try { res = await fetch(url); } catch (e) { const err = new Error('Pas de connexion internet : pièce non copiée.'); err.network = true; throw err; }
-  if (!res.ok) throw new Error('Photo de la pièce introuvable : réessaie dans un instant.');
-  const blob = await res.blob();
+  if (!url && !path) return null;
+  let blob;
+  try { blob = await friendsApi.downloadPhoto(path, url); }
+  catch (e) {
+    if (isNetworkError(e)) { const err = new Error('Pas de connexion internet : pièce non copiée.'); err.network = true; throw err; }
+    throw new Error('Impossible de récupérer la photo de la pièce : ' + (e?.message || 'erreur inconnue') + '.');
+  }
+  if (!blob) return null;
   if (/^image\/(jpeg|png|webp)$/.test(blob.type)) return blob;
   // Type absent ou générique : on le déduit de l'extension du fichier (.png/.webp = photo détourée)
   const type = PHOTO_TYPES[String(path || '').split('.').pop().toLowerCase()] || 'image/jpeg';
