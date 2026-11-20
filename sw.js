@@ -4,7 +4,7 @@
 // - Photos (liens signés Supabase) : cache d'abord, indexées sans le jeton du lien,
 //   pour rester visibles hors connexion même quand le lien a expiré. Cache vidé à la déconnexion.
 // - Les données (API Supabase) ne passent jamais par ce cache : elles sont gérées par l'app.
-const VERSION = 'garderobe-v33';
+const VERSION = 'garderobe-v34';
 const SHELL = VERSION + '-app';
 const LIBS = 'garderobe-libs-v1';
 const PHOTOS = 'garderobe-photos';
@@ -12,7 +12,8 @@ const FILES = ['./', './index.html', './css/app.css', './js/app.js', './js/catal
 const NETWORK_TIMEOUT = 4000;
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(SHELL).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
+  // cache: 'reload' : on prend les fichiers sur le serveur, jamais une vieille copie du cache HTTP du navigateur.
+  e.waitUntil(caches.open(SHELL).then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys()
@@ -35,17 +36,22 @@ async function cacheFirst(req, cacheName, key) {
   if (res.ok || res.type === 'opaque') cache.put(key || req, res.clone()).catch(() => {});
   return res;
 }
+// Réseau d'abord. Si le réseau est lent, on sert la copie en cache au bout de NETWORK_TIMEOUT, mais la réponse
+// du réseau continue d'arriver et remplace la copie : l'ouverture suivante a la nouvelle version.
 async function networkFirst(req) {
   const cache = await caches.open(SHELL);
-  try {
-    const res = await Promise.race([fetch(req), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), NETWORK_TIMEOUT))]);
+  // no-cache : le navigateur revérifie auprès du serveur (réponse 304 légère si rien n'a changé).
+  const net = fetch(req.mode === 'navigate' ? req : new Request(req, { cache: 'no-cache' })).then((res) => {
     if (res.ok) cache.put(req, res.clone()).catch(() => {});
     return res;
+  });
+  try {
+    return await Promise.race([net, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), NETWORK_TIMEOUT))]);
   } catch (err) {
     const hit = await cache.match(req, { ignoreSearch: true });
-    if (hit) return hit;
-    if (req.mode === 'navigate') return (await cache.match('./index.html')) || Response.error();
-    return Response.error();
+    if (hit) { net.catch(() => {}); return hit; }
+    if (req.mode === 'navigate') { const idx = await cache.match('./index.html'); if (idx) return idx; }
+    return net.catch(() => Response.error());
   }
 }
 
