@@ -2,6 +2,7 @@ import { CATEGORIES, CAT_ORDER, ACC_SIZE, MAX_ACC, PALETTE, AV, DEFAULT_AVATAR, 
 import { faceSVG, garmentSVG, esc } from './draw.js';
 import { flatlaySVG } from './flatlay.js';
 import { cutout, isCutPath } from './cutout.js';
+import { retouch } from './retouch.js';
 import { demo, online, isDemo, today, accessoryIds, stripItem } from './store.js';
 import { createSync } from './sync.js';
 import { compressImage } from './image.js';
@@ -711,8 +712,9 @@ function viewImport() {
     const isCut = f[side] ? (f[side + 'Use'] !== 'raw' && !!f[side + 'Cut']) : f[side + 'IsCut'];
     const opt = (v, txt) => `<button type="button" data-act="useCut" data-side="${side}" data-v="${v}" aria-pressed="${f[side + 'Use'] === v}">${txt}</button>`;
     const tools = busy ? '' : f[side + 'Cut'] && f[side + 'Raw']
-      ? `<div class="seg cut-seg" role="group" aria-label="Image ${label.toLowerCase()}">${opt('cut', 'Nettoyée')}${opt('raw', 'Origine')}</div>`
+      ? `<div class="seg cut-seg" role="group" aria-label="Image ${label.toLowerCase()}">${opt('cut', 'Nettoyée')}${opt('raw', 'Origine')}</div>${isCut ? `<button type="button" class="more-toggle" data-act="retouchPhoto" data-side="${side}">Retoucher le détourage</button>` : ''}`
       : url && !f[side] && !f[side + 'IsCut'] ? `<button type="button" class="more-toggle" data-act="cutExisting" data-side="${side}">Nettoyer cette image</button>`
+      : url && isCut ? `<button type="button" class="more-toggle" data-act="retouchPhoto" data-side="${side}">Retoucher le détourage</button>`
       : !url ? `<button type="button" class="btn ghost paste-btn" data-act="pastePhoto" data-side="${side}">${ico('plus', 16, 2)}Coller l’image</button>` : '';
     return `<div class="photo-col"><label class="photo-slot ${isCut ? 'cut' : ''}">${url ? `<img src="${esc(url)}" alt="Aperçu ${label.toLowerCase()}"><button type="button" class="x" data-act="clearPhoto" data-side="${side}" aria-label="Retirer la photo">${ico('close', 14, 2.2)}</button>` : `${ico('cam', 26, 1.6)}${label}`}
       ${busy ? '<span class="cut-busy" role="status"><span class="spinner"></span>Nettoyage…</span>' : ''}
@@ -981,6 +983,19 @@ const actions = {
     } catch (e) { toast(e.message === 'unsupported' ? 'Coller n’est pas possible ici : enregistre l’image puis touche le cadre' : 'Accès au presse-papiers refusé', 'err'); }
   },
   // détourer une photo déjà enregistrée (pièces importées avant le détourage)
+  // gomme / nettoyage auto sur une photo détourée (nouvelle ou déjà enregistrée)
+  async retouchPhoto(el) {
+    const f = S.sheet.form, s = el.dataset.side;
+    let src = f[s];
+    try {
+      if (!src) { const res = await fetch(f[s + 'Preview']); if (!res.ok) throw new Error(); src = await res.blob(); }
+      const out = await retouch(src);
+      if (!out || S.sheet?.form !== f) return;
+      dropPreview(f[s + 'Preview']);
+      f[s] = out; f[s + 'Cut'] = out; f[s + 'Use'] = 'cut'; f[s + 'Preview'] = makePreview(out); f[s + 'Msg'] = '';
+      render(); toast('Retouche prête : enregistre pour la garder');
+    } catch (e) { toast('Impossible d’ouvrir la photo (connexion ?)', 'err'); }
+  },
   async cutExisting(el) {
     const f = S.sheet.form, s = el.dataset.side, url = f[s + 'Preview']; if (!url) return;
     f[s + 'Busy'] = true; f[s + 'Msg'] = ''; render();

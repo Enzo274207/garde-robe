@@ -24,26 +24,76 @@ async function load(blob) {
  */
 export async function cutout(blob, max = MAX_SIDE, sens = 1) {
   // 1er essai : modèle IA (gratuit, exécuté sur l'appareil, téléchargé une fois puis gardé en cache).
-  // Le PNG transparent obtenu repasse dans la méthode classique, qui le recadre et calcule couleur et surface.
+  // Son masque est nettoyé (voir cleanAlpha) puis recadré ; la méthode classique sert de repli.
   if (max === MAX_SIDE && sens === 1) {
     try {
       const ai = await aiCutout(blob);
-      if (ai) { const r = await classicCutout(ai); if (r.ok && r.coverage > 0.01) return r; }
+      if (ai) { const r = await classicCutout(ai, MAX_SIDE, 1, true); if (r.ok && r.coverage > 0.01) return r; }
     } catch (e) { console.warn('Détourage IA indisponible, méthode classique', e); }
   }
   return classicCutout(blob, max, sens);
 }
 
+// Modèle « isnet_fp16 » (~88 Mo, téléchargé une seule fois) : la version compressée « isnet_quint8 » (~44 Mo)
+// rendait le fond à moitié transparent par plaques sur les fonds texturés ou gris clair (bug du pull Bershka).
 const AI_LIB = 'https://esm.sh/@imgly/background-removal@1.7.0';
+const AI_MODEL = 'isnet_fp16';
 let aiLib = null;
 async function aiCutout(blob) {
   if (typeof navigator !== 'undefined' && navigator.onLine === false && !aiLib) return null;
   aiLib = aiLib || import(AI_LIB);
   const { removeBackground } = await aiLib.catch((e) => { aiLib = null; throw e; });
-  return removeBackground(blob, { model: 'isnet_quint8', output: { format: 'image/png' } });
+  return removeBackground(blob, { model: AI_MODEL, output: { format: 'image/png' } });
 }
 
-async function classicCutout(blob, max = MAX_SIDE, sens = 1) {
+/**
+ * Nettoie une couche d'opacité (A, une valeur 0-255 par pixel) :
+ * - contrast : les zones à peine opaques (fond que l'IA n'a pas su trancher) deviennent transparentes,
+ *   les zones presque opaques (le vêtement) deviennent pleines ;
+ * - on garde la pièce (le plus grand morceau, et les morceaux d'au moins 8 % de sa taille : 2e chaussure…) ;
+ *   les îlots de fond et les poussières disparaissent ;
+ * - les pixels semi-transparents ne sont gardés que collés à la pièce (bord adouci), pas en nuage autour ;
+ * - les petits trous fermés dans la pièce (logo pâle, reflet) sont rebouchés, s'il reste leur couleur.
+ * Modifie A ; renvoie false si rien n'a été trouvé.
+ */
+export function cleanAlpha(A, W, H, contrast = true) {
+  const N = W * H, LO = 90, HI = 200, had = new Uint8Array(N);
+  for (let p = 0; p < N; p++) had[p] = A[p] >= 8 ? 1 : 0;   // un pixel tout à fait transparent n'a plus de couleur : jamais rebouché
+  if (contrast) for (let p = 0; p < N; p++) { const a = A[p]; A[p] = a <= LO ? 0 : a >= HI ? 255 : Math.round(((a - LO) * 255) / (HI - LO)); }
+  const lab = new Int32Array(N).fill(-1), queue = new Int32Array(N), sizes = [];
+  const flood = (s, id, test) => {   // remplissage 8-connexe, renvoie la taille et si le bord de l'image est touché
+    let qh = 0, qt = 0, n = 0, edge = false; queue[qt++] = s; lab[s] = id;
+    while (qh < qt) {
+      const p = queue[qh++], x = p % W, y = (p / W) | 0; n++;
+      if (x === 0 || y === 0 || x === W - 1 || y === H - 1) edge = true;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const xx = x + dx, yy = y + dy; if ((!dx && !dy) || xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
+        const q = yy * W + xx; if (lab[q] < 0 && test(q)) { lab[q] = id; queue[qt++] = q; }
+      }
+    }
+    return { n, edge };
+  };
+  const solid = (q) => A[q] >= 128;
+  for (let s = 0; s < N; s++) if (lab[s] < 0 && solid(s)) sizes.push(flood(s, sizes.length, solid).n);
+  const biggest = Math.max(0, ...sizes);
+  if (!biggest) return false;
+  const K = new Uint8Array(N);   // pixels gardés de la pièce
+  for (let p = 0; p < N; p++) if (lab[p] >= 0 && sizes[lab[p]] >= biggest * 0.08) K[p] = 1;
+  // bande de 3 px autour de la pièce (dilatation séparable) : seule zone où le semi-transparent reste
+  const R = 3, T = new Uint8Array(N), B = new Uint8Array(N);
+  for (let y = 0; y < H; y++) { let last = -1e9; for (let x = 0; x < W; x++) { if (K[y * W + x]) last = x; if (x - last <= R) T[y * W + x] = 1; } last = 1e9; for (let x = W - 1; x >= 0; x--) { if (K[y * W + x]) last = x; if (last - x <= R) T[y * W + x] = 1; } }
+  for (let x = 0; x < W; x++) { let last = -1e9; for (let y = 0; y < H; y++) { if (T[y * W + x]) last = y; if (y - last <= R) B[y * W + x] = 1; } last = 1e9; for (let y = H - 1; y >= 0; y--) { if (T[y * W + x]) last = y; if (last - y <= R) B[y * W + x] = 1; } }
+  let area = 0;
+  for (let p = 0; p < N; p++) { if (K[p]) area++; else if (A[p] >= 128 || !B[p]) A[p] = 0; }
+  // trous fermés (ne touchant pas le bord de l'image) de moins de 1,5 % de la pièce : rebouchés
+  lab.fill(-1); const holes = [];
+  const open = (q) => !K[q];
+  for (let s = 0; s < N; s++) if (lab[s] < 0 && !K[s]) { const h = flood(s, holes.length, open); holes.push(!h.edge && h.n < area * 0.015); }
+  for (let p = 0; p < N; p++) if (!K[p] && holes[lab[p]] && had[p]) A[p] = 255;
+  return true;
+}
+
+async function classicCutout(blob, max = MAX_SIDE, sens = 1, fromAi = false) {
   const src = await load(blob);
   const k = Math.min(1, max / Math.max(src.width, src.height));
   const W = Math.max(1, Math.round(src.width * k)), H = Math.max(1, Math.round(src.height * k)), N = W * H;
@@ -56,7 +106,13 @@ async function classicCutout(blob, max = MAX_SIDE, sens = 1) {
   let clear = 0, tot = 0;
   for (let x = 0; x < W; x += 3) { tot += 2; if (px[x * 4 + 3] < 20) clear++; if (px[((H - 1) * W + x) * 4 + 3] < 20) clear++; }
   for (let y = 0; y < H; y += 3) { tot += 2; if (px[(y * W) * 4 + 3] < 20) clear++; if (px[(y * W + W - 1) * 4 + 3] < 20) clear++; }
-  if (clear / tot > 0.6) {
+  if (fromAi || clear / tot > 0.6) {
+    if (fromAi) {   // masque IA : nettoyé avant le recadrage (sinon le fond à moitié transparent reste)
+      const A = new Uint8ClampedArray(N); for (let p = 0; p < N; p++) A[p] = px[p * 4 + 3];
+      if (!cleanAlpha(A, W, H)) return { ok: false, reason: 'Aucun vêtement détecté sur la photo.' };
+      for (let p = 0; p < N; p++) px[p * 4 + 3] = A[p];
+      ctx.putImageData(img, 0, 0);
+    }
     let x0 = W, y0 = H, x1 = -1, y1 = -1, fg = 0, sr = 0, sg = 0, sb = 0, sn = 0;
     for (let p = 0, i = 0; p < N; p++, i += 4) {
       const a = px[i + 3]; if (a <= 24) continue;
@@ -206,6 +262,7 @@ async function classicCutout(blob, max = MAX_SIDE, sens = 1) {
     let s = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) s += A[p + dy * W + dx];
     A2[p] = Math.round(s / 9);
   }
+  cleanAlpha(A2, W, H, false);   // îlots de fond détachés de la pièce et poussières semi-transparentes : retirés
   let x0 = W, y0 = H, x1 = -1, y1 = -1, fg = 0, sr = 0, sg = 0, sb = 0, sn = 0;
   for (let p = 0, i = 0; p < N; p++, i += 4) {
     const a = A2[p];
