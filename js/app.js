@@ -1427,6 +1427,22 @@ addEventListener('keydown', (ev) => {
 });
 
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-  addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  // Mises à jour : on cherche une nouvelle version à chaque retour dans l'app (sur iPhone, l'app installée
+  // reste souvent ouverte en arrière-plan). Quand la nouvelle version prend la main, on recharge la page,
+  // tout de suite si rien n'est en cours, sinon au prochain passage en arrière-plan.
+  // Les données ne sont pas touchées (la file hors connexion est enregistrée sur l'appareil).
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloadPending = false;
+  const reloadNow = () => { reloadPending = false; location.reload(); };
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) return;   // première installation : la page est déjà à jour
+    if (document.hidden || (!S.sheet && !S.detail && !S.busy)) reloadNow(); else reloadPending = true;
+  });
+  addEventListener('load', () => navigator.serviceWorker.register('./sw.js').then((reg) => {
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && reloadPending) reloadNow();
+      else if (!document.hidden) reg.update().catch(() => {});
+    });
+  }).catch(() => {}));
 }
 boot();
