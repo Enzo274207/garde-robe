@@ -600,7 +600,7 @@ function viewFriend() {
     <header class="cat-head">
       <a class="icon-btn" href="#/amis" aria-label="Retour à mes amis">${ico('back', 20, 2)}</a>
       ${f ? `<span class="fr-face">${faceSVG(f.avatar, 40)}</span>` : ''}
-      <div class="t"><span class="kicker">Dressing de</span><h1 class="h-font">${esc(name)}</h1><span class="sub">${fw?.items ? `${all.length} pièce${all.length > 1 ? 's' : ''} · lecture seule` : ''}</span></div>
+      <div class="t"><span class="kicker">Dressing de</span><h1 class="h-font">${esc(name)}</h1><span class="sub">${fw?.items ? `${all.length} pièce${all.length > 1 ? 's' : ''} · touche une pièce pour la copier chez toi` : ''}</span></div>
     </header>
     ${!fw || (!fw.items && !fw.err) ? '<div class="spinner" role="status" aria-label="Chargement"></div>'
       : fw.err ? `<div class="empty"><b>Oups</b>${esc(fw.err)}<button class="btn ghost" style="height:40px" data-act="reloadFriend">${ico('retry', 18, 2)}Réessayer</button></div>`
@@ -613,6 +613,30 @@ function viewFriend() {
     ${f ? `<div class="menu" style="margin-top:8px"><button class="menu-row ${confirming ? 'confirm' : 'danger'}" data-act="removeFriend" data-id="${f.id}" data-confirm="1" ${S.busy ? 'disabled' : ''}>${ico('close', 20, 1.8)}<span class="grow">${confirming ? 'Confirmer : retirer de mes amis' : `Retirer ${esc(name)} de mes amis`}</span></button></div>
       ${confirming ? `<div class="hint">Vous ne verrez plus vos dressings respectifs. Vos pièces ne sont pas touchées.</div>` : ''}` : ''}
   </main>`;
+}
+
+// Copie d'une pièce d'un ami : mêmes infos (sauf favori et historique, qui repartent de zéro)
+const COPY_KEYS = ['category', 'type', 'name', 'color_name', 'color_hex', 'fit', 'secondary_colors', 'seasons', 'style', 'warmth', 'formality', 'material', 'brand', 'size'];
+function copyMeta(it) {
+  const meta = Object.fromEntries(COPY_KEYS.map((k) => [k, it[k] ?? null]));
+  meta.name = String(meta.name || `${it.type} ${String(it.color_name || '').toLowerCase()}`).slice(0, 80);
+  meta.secondary_colors = Array.isArray(it.secondary_colors) ? it.secondary_colors.filter((h) => h !== it.color_hex).slice(0, 4) : [];
+  meta.seasons = Array.isArray(it.seasons) ? [...it.seasons] : [];
+  meta.favorite = false;
+  return meta;
+}
+// Télécharge la photo de l'ami pour en faire une nouvelle photo à soi (son fichier n'est jamais touché).
+const PHOTO_TYPES = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+async function photoBlob(url, path) {
+  if (!url) return null;
+  let res;
+  try { res = await fetch(url); } catch (e) { const err = new Error('Pas de connexion internet : pièce non copiée.'); err.network = true; throw err; }
+  if (!res.ok) throw new Error('Photo de la pièce introuvable : réessaie dans un instant.');
+  const blob = await res.blob();
+  if (/^image\/(jpeg|png|webp)$/.test(blob.type)) return blob;
+  // Type absent ou générique : on le déduit de l'extension du fichier (.png/.webp = photo détourée)
+  const type = PHOTO_TYPES[String(path || '').split('.').pop().toLowerCase()] || 'image/jpeg';
+  return new Blob([blob], { type });
 }
 
 function filtered(cat) {
@@ -701,7 +725,10 @@ function viewDetail() {
       <button class="btn accent" data-act="tryOn" data-id="${it.id}">${ico('avatar', 18, 1.8)}${it.category === 'accessoire' ? 'Ajouter à la tenue' : 'Mettre sur l’avatar'}</button>
       <button class="btn ghost" style="padding:0;color:${confirming ? '#fff' : 'var(--danger)'};background:${confirming ? 'var(--danger)' : ''}" data-act="delete" data-id="${it.id}" aria-label="${confirming ? 'Confirmer la suppression' : 'Supprimer la pièce'}" ${S.busy ? 'disabled' : ''}>${ico(confirming ? 'check' : 'trash', 20, 1.8)}</button>
     </div>
-    ${confirming ? '<div class="hint" style="color:var(--danger)">Touche encore pour supprimer définitivement</div>' : ''}` : ''}
+    ${confirming ? '<div class="hint" style="color:var(--danger)">Touche encore pour supprimer définitivement</div>' : ''}`
+    : S.fw?.copied?.[it.id] ? `<a class="btn ghost" href="#/c/${it.category}" style="margin-top:auto">${ico('check', 18, 2)}Copiée dans ta garde-robe · voir</a>`
+    : `<button class="btn accent" style="margin-top:auto" data-act="copyFriendItem" data-id="${esc(it.id)}" ${S.busy ? 'disabled' : ''}>${ico('plus', 18, 2)}${S.busy ? 'Copie en cours…' : 'Copier dans ma garde-robe'}</button>
+    <div class="hint">Une copie rien qu’à toi : ${esc(S.fw.name)} garde sa pièce, et tu peux modifier la tienne.</div>`}
   </div></div>`;
 }
 
@@ -1030,6 +1057,18 @@ const actions = {
   },
   open(el) { S.detail = { id: el.dataset.id, back: false }; S.confirmDelete = null; render(); },
   closeDetail() { S.detail = null; S.confirmDelete = null; render(); },
+  async copyFriendItem(el) {
+    const it = S.fw?.items?.find((x) => x.id === el.dataset.id); if (!it || S.busy) return;
+    const fw = S.fw;
+    let saved = null;
+    const ok = await guarded(async () => {
+      const [front, back] = await Promise.all([photoBlob(it.front_url, it.front_path), photoBlob(it.back_url, it.back_path)]);
+      saved = await store.addItem(copyMeta(it), front, back);
+      S.items.unshift(saved);
+      (fw.copied ||= {})[it.id] = saved.id;
+    });
+    if (ok) toast(done(`« ${saved.name} » copié dans ta garde-robe`));
+  },
   openFriendItem(el) { S.detail = { id: el.dataset.id, back: false, friend: true }; render(); },
   fwCat(el) { if (S.fw) { S.fw.cat = el.dataset.v; render(); } },
   reloadFriends() { S.fr.loaded = false; render(); loadFriends(); },
