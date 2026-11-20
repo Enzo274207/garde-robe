@@ -4,7 +4,7 @@
 // - Photos (liens signés Supabase) : cache d'abord, indexées sans le jeton du lien,
 //   pour rester visibles hors connexion même quand le lien a expiré. Cache vidé à la déconnexion.
 // - Les données (API Supabase) ne passent jamais par ce cache : elles sont gérées par l'app.
-const VERSION = 'garderobe-v31';
+const VERSION = 'garderobe-v32';
 const SHELL = VERSION + '-app';
 const LIBS = 'garderobe-libs-v1';
 const PHOTOS = 'garderobe-photos';
@@ -29,7 +29,8 @@ const isPhoto = (u) => u.hostname.endsWith('.supabase.co') && u.pathname.startsW
 async function cacheFirst(req, cacheName, key) {
   const cache = await caches.open(cacheName);
   const hit = await cache.match(key || req);
-  if (hit) return hit;
+  // Une copie « opaque » (gardée pour une balise <img>) ne peut pas servir à une lecture par l'app
+  if (hit && !(hit.type === 'opaque' && req.mode === 'cors')) return hit;
   const res = await fetch(req);
   if (res.ok || res.type === 'opaque') cache.put(key || req, res.clone()).catch(() => {});
   return res;

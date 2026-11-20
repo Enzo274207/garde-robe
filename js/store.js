@@ -200,6 +200,13 @@ const demo = {
   },
   async acceptFriend(id) { const d = this._friends(); const f = d.friends.find((x) => x.id === id); if (f) f.status = 'accepted'; this._save(d); },
   async removeFriend(id) { const d = this._friends(); d.friends = d.friends.filter((x) => x.id !== id); this._save(d); },
+  async downloadPhoto(path, url) {
+    const b = path ? await idbGet(path) : null;
+    if (b) return b;
+    if (!url) return null;
+    const res = await fetch(url); if (!res.ok) throw new Error('Photo introuvable');
+    return res.blob();
+  },
   async friendItems(friendId) {
     const f = this._friends().friends.find((x) => x.friend_id === friendId && x.status === 'accepted');
     if (!f) throw new Error('Cette personne n’est pas (ou plus) dans tes amis.');
@@ -426,6 +433,13 @@ const online = {
   },
   async acceptFriend(id) { const c = await client(); const { error } = await c.rpc('accept_friend', { fid: id }); fail(error); },
   async removeFriend(id) { const c = await client(); const { error } = await c.from('friendships').delete().eq('id', id); fail(error); },
+  // Photo d'un ami (lecture seule, autorisée par la migration 005) : téléchargée par l'API du stockage
+  async downloadPhoto(path) {
+    if (!path) return null;
+    const c = await client();
+    const { data, error } = await c.storage.from('photos').download(path);
+    fail(error); return data;
+  },
   async friendItems(friendId) {
     const c = await client();
     const { data, error } = await c.rpc('friend_items', { friend: friendId });
