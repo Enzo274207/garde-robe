@@ -607,7 +607,7 @@ function viewFriend() {
       : `<div class="chips noscroll" role="group" aria-label="Catégorie">${chips}</div>
         <div class="grid">${list.map((it) => `<button class="tile" data-act="openFriendItem" data-id="${esc(it.id)}" aria-label="Voir ${esc(it.name)}">
           <div class="img">${tileVisual(it)}<span class="badge">${esc(it.type)}</span></div>
-          <div class="meta"><b>${esc(it.name)}</b><div class="row"><span class="dot" style="width:12px;height:12px;background:${col(it.color_hex)}"></span><span class="grow">${esc(it.color_name || '')}</span>${it.fit ? `<span class="tag" style="font-size:11px;color:var(--fg)">${esc(it.fit)}</span>` : ''}</div></div>
+          <div class="meta"><b>${esc(it.name)}</b><div class="row"><span class="dot" style="width:12px;height:12px;background:${col(it.color_hex)}"></span>${(it.secondary_colors || []).map((h) => `<span class="dot" style="width:8px;height:8px;margin-left:-2px;background:${col(h)}"></span>`).join('')}<span class="grow">${esc(it.color_name || '')}</span>${it.fit ? `<span class="tag" style="font-size:11px;color:var(--fg)">${esc(it.fit)}</span>` : ''}</div></div>
         </button>`).join('')}</div>`}
     ${f ? `<div class="menu" style="margin-top:8px"><button class="menu-row ${confirming ? 'confirm' : 'danger'}" data-act="removeFriend" data-id="${f.id}" data-confirm="1" ${S.busy ? 'disabled' : ''}>${ico('close', 20, 1.8)}<span class="grow">${confirming ? 'Confirmer : retirer de mes amis' : `Retirer ${esc(name)} de mes amis`}</span></button></div>
       ${confirming ? `<div class="hint">Vous ne verrez plus vos dressings respectifs. Vos pièces ne sont pas touchées.</div>` : ''}` : ''}
@@ -652,7 +652,7 @@ function viewCat(cat) {
       : !n ? `<div class="empty"><b>${C.empty}</b>Change de filtre.<button class="btn ghost" style="height:40px" data-act="resetFilters">Effacer les filtres</button></div>`
       : `<div class="grid">${list.map((it) => `<button class="tile" data-act="open" data-id="${it.id}" aria-label="Voir ${esc(it.name)}">
           <div class="img">${tileVisual(it)}<span class="badge">${esc(it.type)}</span>${it.favorite ? `<span class="fav-badge" aria-label="Favori">${ico('heart', 14, 2, 'currentColor')}</span>` : ''}</div>
-          <div class="meta"><b>${esc(it.name)}</b><div class="row"><span class="dot" style="width:12px;height:12px;background:${col(it.color_hex)}"></span><span class="grow">${esc(it.color_name || '')}</span>${it.fit ? `<span class="tag" style="font-size:11px;color:var(--fg)">${esc(it.fit)}</span>` : ''}</div></div>
+          <div class="meta"><b>${esc(it.name)}</b><div class="row"><span class="dot" style="width:12px;height:12px;background:${col(it.color_hex)}"></span>${(it.secondary_colors || []).map((h) => `<span class="dot" style="width:8px;height:8px;margin-left:-2px;background:${col(h)}"></span>`).join('')}<span class="grow">${esc(it.color_name || '')}</span>${it.fit ? `<span class="tag" style="font-size:11px;color:var(--fg)">${esc(it.fit)}</span>` : ''}</div></div>
         </button>`).join('')}</div>`}
   </main>`;
 }
@@ -732,11 +732,11 @@ function viewImport() {
       <label class="field">Nom de la pièce<input class="input" id="i-name" data-input="name" value="${esc(f.name)}" placeholder="Ex. : Pull col roulé" autocomplete="off" maxlength="80"></label>
       <div class="field">Catégorie<div class="swatches">${chips('iCat', CAT_ORDER, f.category, (o) => CATEGORIES[o].title)}</div></div>
       <div class="field">Type<div class="swatches">${chips('iType', C.types, f.type)}</div></div>
-      <div class="field">Couleur · ${esc(f.color_name)}<div class="swatches big">${PALETTE.map((p) => `<button type="button" class="swatch" style="background:${p.hex}" aria-label="${p.label}" aria-pressed="${f.color_hex === p.hex}" data-act="iColor" data-v="${p.hex}"></button>`).join('')}</div></div>
+      <div class="field">Couleur dominante · ${esc(f.color_name)}<div class="swatches big">${PALETTE.map((p) => `<button type="button" class="swatch" style="background:${p.hex}" aria-label="${p.label}" aria-pressed="${f.color_hex === p.hex}" data-act="iColor" data-v="${p.hex}"></button>`).join('')}</div></div>
+      <div class="field">Couleur secondaire (facultatif)${f.secondary_colors.length ? ' · ' + esc(f.secondary_colors.map((h) => PALETTE.find((p) => p.hex === h)?.label || '').filter(Boolean).join(', ')) : ''}<div class="swatches big">${PALETTE.filter((p) => p.hex !== f.color_hex).map((p) => `<button type="button" class="swatch" style="background:${p.hex}" aria-label="${p.label}" aria-pressed="${f.secondary_colors.includes(p.hex)}" data-act="iColor2" data-v="${p.hex}"></button>`).join('')}</div><span class="hint" style="text-align:left;margin-top:6px">Les touches de couleur de la pièce, par ex. un pull blanc à rayures marine. Jusqu’à 4.</span></div>
       ${C.fits.length ? `<div class="field">${C.fitWord}<div class="seg">${C.fits.map((v) => `<button type="button" aria-pressed="${f.fit === v}" data-act="iFit" data-v="${esc(v)}">${esc(v)}</button>`).join('')}</div></div>` : ''}
       <button type="button" class="more-toggle" data-act="toggleMore" aria-expanded="${!!more}">${more ? 'Masquer les détails' : 'Plus de détails (facultatif)'}</button>
       ${more ? `
-      <div class="field">Couleurs secondaires (4 max)<div class="swatches big">${PALETTE.map((p) => `<button type="button" class="swatch" style="background:${p.hex}" aria-label="${p.label}" aria-pressed="${f.secondary_colors.includes(p.hex)}" data-act="iColor2" data-v="${p.hex}"></button>`).join('')}</div></div>
       <div class="field">Saisons<div class="swatches">${chips('iSeason', SEASONS, f.seasons)}</div></div>
       <div class="field">Style<div class="swatches">${chips('iStyle', STYLES, f.style)}</div></div>
       <div class="field">Chaleur${levels('iWarmth', WARMTH, f.warmth)}</div>
@@ -922,7 +922,7 @@ const actions = {
   edit(el) {
     const it = item(el.dataset.id); if (!it) return;
     S.sheet = {
-      kind: 'import', editId: it.id, err: '', more: !!(it.style || it.seasons?.length || it.warmth || it.formality || it.material || it.brand || it.size || it.secondary_colors?.length || it.favorite),
+      kind: 'import', editId: it.id, err: '', more: !!(it.style || it.seasons?.length || it.warmth || it.formality || it.material || it.brand || it.size || it.favorite),
       form: {
         ...newForm(it.category), name: it.name, category: it.category, type: it.type, color_hex: it.color_hex, color_name: it.color_name, fit: it.fit || '',
         secondary_colors: [...(it.secondary_colors || [])], seasons: [...(it.seasons || [])], style: it.style, warmth: it.warmth, formality: it.formality,
@@ -939,7 +939,7 @@ const actions = {
   iCat(el) { const f = S.sheet.form, C = CATEGORIES[el.dataset.v]; f.category = el.dataset.v; f.type = C.types[0]; f.fit = C.fits[1] || C.fits[0] || ''; render(); },
   iType(el) { S.sheet.form.type = el.dataset.v; render(); },
   iFit(el) { S.sheet.form.fit = el.dataset.v; render(); },
-  iColor(el) { const p = PALETTE.find((x) => x.hex === el.dataset.v); S.sheet.form.color_hex = p.hex; S.sheet.form.color_name = p.label; S.sheet.form.colorTouched = true; render(); },
+  iColor(el) { const p = PALETTE.find((x) => x.hex === el.dataset.v); S.sheet.form.color_hex = p.hex; S.sheet.form.color_name = p.label; S.sheet.form.secondary_colors = S.sheet.form.secondary_colors.filter((h) => h !== p.hex); S.sheet.form.colorTouched = true; render(); },
   iColor2(el) {
     const f = S.sheet.form, v = el.dataset.v;
     if (f.secondary_colors.includes(v)) f.secondary_colors = f.secondary_colors.filter((x) => x !== v);

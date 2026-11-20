@@ -159,8 +159,14 @@ function pairScore(a, b) {
   if (a.color_hex === b.color_hex && !(na && nb)) s -= 1.5;         // même couleur forte : trop chargé
   if (na && nb && isDark(a.color_hex) !== isDark(b.color_hex)) s += 0.6; // contraste clair / foncé
   if (a.style && b.style) s += a.style === b.style ? 1.2 : CLASH(a.style, b.style) ? -2 : 0;
+  s += echo(a, b) || echo(b, a) ? 1.3 : 0;                          // la touche de l'une reprend la couleur de l'autre
+  const strong = (it) => [it.color_hex, ...(it.secondary_colors || [])].filter((h) => !isNeutral(h));
+  const sa = strong(a), sb = strong(b);
+  if (sa.length && sb.length && !sa.some((h) => sb.includes(h)) && sa.length + sb.length > 2) s -= 0.8; // trop de couleurs vives différentes
   return s;
 }
+// Une couleur secondaire (non neutre) de « a » est la couleur dominante de « b »
+const echo = (a, b) => !isNeutral(b.color_hex) && (a.secondary_colors || []).includes(b.color_hex);
 function proportion(top, bottom) {
   if (top.fit === 'Ample' && bottom.fit === 'Ajusté') return 2;
   if (top.fit === 'Ajusté' && ['Ample', 'Regular'].includes(bottom.fit)) return 1.2;
@@ -252,6 +258,9 @@ function explain(ctx, top, bottom, jacket, items) {
   if (!nt && nb) out.push(`Le ${(top.color_name || 'haut').toLowerCase()} ressort sur une base neutre.`);
   else if (nt && !nb) out.push(`Ton bas ${(bottom.color_name || '').toLowerCase()} apporte la touche de couleur.`);
   else if (nt && nb) out.push('Des couleurs neutres : impossible de se tromper.');
+  const pairs = [[top, bottom], [bottom, top], ...(jacket ? [[jacket, top], [top, jacket], [jacket, bottom], [bottom, jacket]] : [])];
+  const e = pairs.find(([a, b]) => echo(a, b));
+  if (e) out.push(`Les touches ${(e[1].color_name || '').toLowerCase()} de ${e[0].name.toLowerCase()} répondent à ${e[1].name.toLowerCase()} : c’est raccord !`);
   if (jacket && ctx.weather === 'froid') out.push(`Et ${jacket.name.toLowerCase()} par-dessus, il fait froid !`);
   else if (jacket?.category === 'haut') out.push(`Et ${jacket.name.toLowerCase()} ouvert par-dessus : on superpose !`);
   else if (!jacket && ctx.weather === 'chaud') out.push('Pas de veste, il fait chaud.');
