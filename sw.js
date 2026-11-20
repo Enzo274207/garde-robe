@@ -4,11 +4,11 @@
 // - Photos (liens signés Supabase) : cache d'abord, indexées sans le jeton du lien,
 //   pour rester visibles hors connexion même quand le lien a expiré. Cache vidé à la déconnexion.
 // - Les données (API Supabase) ne passent jamais par ce cache : elles sont gérées par l'app.
-const VERSION = 'garderobe-v28';
+const VERSION = 'garderobe-v30';
 const SHELL = VERSION + '-app';
 const LIBS = 'garderobe-libs-v1';
 const PHOTOS = 'garderobe-photos';
-const FILES = ['./', './index.html', './css/app.css', './js/app.js', './js/catalog.js', './js/draw.js', './js/store.js', './js/sync.js', './js/image.js', './js/flatlay.js', './js/cutout.js', './js/retouch.js', './js/stylist.js', './js/weather.js', './js/config.js', './manifest.webmanifest', './icons/icon.svg', './icons/apple-touch-icon.png', './icons/icon-192.png', './icons/icon-512.png'];
+const FILES = ['./', './index.html', './css/app.css', './js/app.js', './js/catalog.js', './js/draw.js', './js/store.js', './js/sync.js', './js/image.js', './js/flatlay.js', './js/cutout.js', './js/retouch.js', './js/colorpick.js', './js/stylist.js', './js/weather.js', './js/config.js', './manifest.webmanifest', './icons/icon.svg', './icons/apple-touch-icon.png', './icons/icon-192.png', './icons/icon-512.png'];
 const NETWORK_TIMEOUT = 4000;
 
 self.addEventListener('install', (e) => {
