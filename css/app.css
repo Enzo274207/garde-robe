@@ -422,3 +422,15 @@ a.pill, a.menu-row { color: var(--fg); text-decoration: none; }
 .fr-add .input { text-transform: uppercase; letter-spacing: .12em; }
 .fr-add .btn { height: 46px; }
 .btn.mini { height: 36px; padding: 0 12px; font-size: 13px; }
+
+/* ---------- retouche du détourage (gomme) ---------- */
+.retouch { position: fixed; inset: 0; z-index: 50; background: var(--bg); color: var(--fg); display: flex; flex-direction: column; gap: 10px; padding: calc(var(--safe-top) + 10px) 16px calc(var(--safe-bottom) + 14px); }
+.rt-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rt-head strong { font-size: 16px; }
+.rt-stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.rt-board { max-width: 100%; max-height: 100%; display: flex; border-radius: var(--r-lg); overflow: hidden;
+  background: repeating-conic-gradient(#d9d7d1 0 25%, #f4f3ef 0 50%) 0 0 / 20px 20px; }
+.rt-board canvas { display: block; max-width: 100%; max-height: calc(100dvh - 300px); width: auto; height: auto; object-fit: contain; touch-action: none; cursor: crosshair; }
+.rt-hint { margin: 0; text-align: center; font-size: 13px; color: var(--muted); }
+.rt-tools { display: flex; gap: 8px; }
+.rt-tools .btn.dark { flex: 1; }
