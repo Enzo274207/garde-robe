@@ -4,6 +4,7 @@ import { faceSVG, avatarSVG, normalizeAvatar, randomAvatar } from './avatar.js';
 import { flatlaySVG } from './flatlay.js';
 import { cutout, isCutPath } from './cutout.js';
 import { retouch } from './retouch.js';
+import { cropFace } from './cropper.js';
 import { pickColor } from './colorpick.js';
 import { demo, online, isDemo, today, accessoryIds, stripItem, isNetworkError } from './store.js';
 import { createSync } from './sync.js';
@@ -43,7 +44,7 @@ const ico = (k, size = 22, sw = 1.7, fill = 'none') => `<svg aria-hidden="true" 
 const col = (hex) => safeColor(hex);
 // En ligne : couche hors connexion par-dessus Supabase. Démo : stockage local direct.
 const store = isDemo ? demo : createSync(online);
-// Amis : toujours lus en direct (rien à garder hors connexion)
+// Amis et photo de profil : toujours en direct (rien à garder hors connexion)
 const friendsApi = isDemo ? demo : online;
 
 /* ---------------- état ---------------- */
@@ -96,7 +97,47 @@ function makePreview(blob) { const u = URL.createObjectURL(blob); ownUrls.add(u)
 function dropPreview(u) { if (u && ownUrls.has(u)) { URL.revokeObjectURL(u); ownUrls.delete(u); } }
 function closeSheet() {
   if (S.sheet?.form) { dropPreview(S.sheet.form.frontPreview); dropPreview(S.sheet.form.backPreview); }
+  if (S.sheet?.kind === 'face') dropPreview(S.sheet.preview);
   S.sheet = null; S.confirmAccount = false; S.confirmSignOut = false;
+}
+
+/* ---------------- photo de profil ---------------- */
+// Le choix « avatar ou photo » et le chemin de la photo sont rangés dans l'avatar du profil
+// (avatar.usePhoto, avatar.photo) : aucune colonne à ajouter, et les amis les reçoivent déjà avec l'avatar.
+// Sans photo, sans lien ou si l'image ne se charge pas (demande d'ami pas encore acceptée, hors connexion
+// sans copie…), l'avatar dessiné s'affiche comme avant.
+const FACE_LS = 'garderobe-face';   // dernier lien de ma photo, pour l'afficher hors connexion
+const faces = { urls: new Map(), asked: new Map(), retried: new Set(), bad: new Set(), timer: null };
+try { const f = JSON.parse(localStorage.getItem(FACE_LS) || 'null'); if (f?.path && f?.url) faces.urls.set(f.path, f.url); } catch (e) { /* rien */ }
+const savedFace = (av) => (av && typeof av.photo === 'string' && av.photo ? av.photo : null);
+const facePath = (av) => (av?.usePhoto === true ? savedFace(av) : null);
+function wantFace(path) {
+  const t = faces.asked.get(path);
+  if (t && Date.now() - t < 60000) return;   // nouvel essai au plus une fois par minute
+  faces.asked.set(path, Date.now());
+  clearTimeout(faces.timer); faces.timer = setTimeout(signFaces, 0);
+}
+async function signFaces() {
+  const paths = [...faces.asked.keys()].filter((p) => !faces.urls.has(p) && !faces.bad.has(p));
+  if (!paths.length || !S.user) return;
+  let got = {};
+  try { got = await friendsApi.faceUrls(paths); } catch (e) { return; }   // hors connexion : avatar dessiné
+  for (const [p, u] of Object.entries(got)) faces.urls.set(p, u);
+  const mine = savedFace(S.profile.avatar);
+  if (!isDemo && mine && got[mine]) { try { localStorage.setItem(FACE_LS, JSON.stringify({ path: mine, url: got[mine] })); } catch (e) { /* rien */ } }
+  if (Object.keys(got).length) render();
+}
+function faceHTML(av, size, path = facePath(av)) {
+  if (path && !faces.bad.has(path)) {
+    const u = faces.urls.get(path);
+    if (u) return `<img class="face-img" data-face="${esc(path)}" src="${esc(u)}" alt="" width="${size}" height="${size}">`;
+    wantFace(path);
+  }
+  return faceSVG(av, size);
+}
+function forgetFaces() {
+  faces.urls.clear(); faces.asked.clear(); faces.retried.clear(); faces.bad.clear();
+  try { localStorage.removeItem(FACE_LS); } catch (e) { /* rien */ }
 }
 
 /* ---------------- sélection courante ---------------- */
@@ -138,7 +179,7 @@ async function boot() {
   S.ready = true; route(); render();
 }
 function resetSession() {
-  closeSheet();
+  closeSheet(); forgetFaces();
   Object.assign(S, { user: null, detail: null, items: [], outfits: [], wears: [], loadErr: '', confirmDelete: null, fw: null, fr: { loaded: false, code: '', list: [], err: '', input: '', confirm: null } });
   if (location.hash && location.hash !== '#/') location.hash = '#/';
   render();
@@ -214,6 +255,7 @@ function render() {
   if (S.user && S.sheet?.kind === 'pick') html += viewPick();
   if (S.user && S.sheet?.kind === 'import') html += viewImport();
   if (S.user && S.sheet?.kind === 'avatar') html += viewAvatar();
+  if (S.user && S.sheet?.kind === 'face') html += viewFace();
   if (S.user && S.sheet?.kind === 'sync') html += viewSync();
   if (S.toast) html += `<div class="toast ${S.toast.kind === 'err' ? 'err' : ''}" role="${S.toast.kind === 'err' ? 'alert' : 'status'}">${esc(S.toast.msg)}</div>`;
   app.innerHTML = html;
@@ -517,12 +559,13 @@ function viewProfile() {
   return `${demoBanner()}<main class="screen">
     <header class="cat-head"><div class="t"><h1 class="h-font">Profil</h1>${S.user?.email ? `<span class="sub">${esc(S.user.email)}</span>` : ''}</div></header>
     <section class="profile-card" aria-label="Mon profil">
-      <span class="pf-face">${faceSVG(S.profile.avatar, 76)}</span>
+      <button class="pf-face" data-act="openFace" aria-label="Changer ma photo de profil">${faceHTML(S.profile.avatar, 76)}</button>
       <div style="min-width:0"><b class="h-font pf-name">${esc(S.profile.username || 'Moi')}</b>
         <div class="stats"><span><b>${S.items.length}</b>pièces</span><span><b>${S.outfits.length}</b>tenues</span><span><b>${S.wears.length}</b>jours</span></div></div>
     </section>
     <h2 class="label-sec">Réglages</h2>
     <div class="menu">
+      <button class="menu-row" data-act="openFace">${ico('cam', 20, 1.8)}<span class="grow">Photo de profil</span><span class="note">${facePath(S.profile.avatar) ? 'Photo' : 'Avatar'}</span>${ico('chev', 18, 2)}</button>
       <button class="menu-row" data-act="openAvatar">${ico('avatar', 20, 1.8)}<span class="grow">Modifier mon avatar</span>${ico('chev', 18, 2)}</button>
       <a class="menu-row" href="#/amis">${ico('friends', 20, 1.8)}<span class="grow">Amis</span>${incoming() ? `<span class="count">${incoming()}</span>` : `<span class="note">${S.fr.list.filter((f) => f.status === 'accepted').length || ''}</span>`}${ico('chev', 18, 2)}</a>
       <button class="menu-row" data-act="theme" aria-pressed="${dark}">${ico('moon', 20, 1.8)}<span class="grow">Mode sombre</span><span class="toggle"><i></i></span></button>
@@ -556,7 +599,7 @@ async function loadFriendItems(id) {
   if (S.fw === fw) render();
 }
 function friendRow(f) {
-  const face = `<span class="fr-face">${faceSVG(f.avatar, 40)}</span>`, name = `<b class="grow">${esc(f.username || 'Sans pseudo')}</b>`;
+  const face = `<span class="fr-face">${faceHTML(f.avatar, 40)}</span>`, name = `<b class="grow">${esc(f.username || 'Sans pseudo')}</b>`;
   if (f.status === 'accepted') return `<a class="menu-row" href="#/amis/${encodeURIComponent(f.friend_id)}">${face}<span class="grow fr-t">${name}<small>${f.items_count} pièce${f.items_count > 1 ? 's' : ''}</small></span>${ico('chev', 18, 2)}</a>`;
   if (f.incoming) return `<div class="menu-row">${face}<span class="grow fr-t">${name}<small>veut voir ton dressing (et te montrer le sien)</small></span>
     <button class="btn accent mini" data-act="acceptFriend" data-id="${f.id}" ${S.busy ? 'disabled' : ''}>Accepter</button>
@@ -602,7 +645,7 @@ function viewFriend() {
   return `${demoBanner()}<main class="screen">
     <header class="cat-head">
       <a class="icon-btn" href="#/amis" aria-label="Retour à mes amis">${ico('back', 20, 2)}</a>
-      ${f ? `<span class="fr-face">${faceSVG(f.avatar, 40)}</span>` : ''}
+      ${f ? `<span class="fr-face">${faceHTML(f.avatar, 40)}</span>` : ''}
       <div class="t"><span class="kicker">Dressing de</span><h1 class="h-font">${esc(name)}</h1><span class="sub">${fw?.items ? `${all.length} pièce${all.length > 1 ? 's' : ''} · touche une pièce pour la copier chez toi` : ''}</span></div>
     </header>
     ${!fw || (!fw.items && !fw.err) ? '<div class="spinner" role="status" aria-label="Chargement"></div>'
@@ -827,6 +870,33 @@ function viewAvatar() {
   </div></div>`;
 }
 
+// Photo de profil : avatar dessiné ou vraie photo (recadrée en carré). L'avatar des tenues ne change pas.
+function viewFace() {
+  const sh = S.sheet, av = S.profile.avatar, photo = sh.use === 'photo';
+  const saved = sh.removed ? null : savedFace(av), has = !!(sh.blob || saved);
+  const preview = photo && sh.preview ? `<img class="face-img" src="${esc(sh.preview)}" alt="Aperçu de la photo">`
+    : photo && saved ? faceHTML(av, 132, saved)
+    : photo ? `<span class="face-empty">${ico('cam', 30, 1.6)}</span>`
+    : faceSVG(av, 132, 'portrait', 'Aperçu de l’avatar');
+  return `<div class="overlay" data-act="closeSheetBg"><div class="sheet" role="dialog" aria-modal="true" aria-label="Photo de profil">
+    <span class="grab"></span>
+    <div class="sheet-head"><h2 class="h-font">Photo de profil</h2><button class="icon-btn" data-act="closeSheet" aria-label="Fermer">${ico('close', 18, 2)}</button></div>
+    <div class="sheet-body">
+      <div class="face-preview">${preview}</div>
+      <div class="seg" role="group" aria-label="À afficher sur mon profil">
+        <button type="button" data-act="faceUse" data-v="avatar" aria-pressed="${!photo}">Mon avatar</button>
+        <button type="button" data-act="faceUse" data-v="photo" aria-pressed="${photo}">Une photo</button>
+      </div>
+      ${photo ? `<label class="btn ghost face-pick">${ico('cam', 18, 1.8)}${has ? 'Changer de photo' : 'Choisir une photo'}<input type="file" accept="image/*" data-face-file="1" aria-label="${has ? 'Changer de photo' : 'Choisir une photo'}"></label>
+        ${has ? `<button type="button" class="more-toggle" data-act="faceRemove">Retirer la photo</button>` : ''}`
+        : `<button type="button" class="btn ghost" data-act="openAvatar">${ico('avatar', 18, 1.8)}Modifier mon avatar</button>`}
+      ${sh.err ? `<p class="err">${esc(sh.err)}</p>` : ''}
+      <button class="btn accent" data-act="saveFace" ${S.busy || (photo && !has) ? 'disabled' : ''}>Enregistrer</button>
+      <p class="hint">Visible sur ton profil et chez tes amis. L’avatar qui porte tes tenues ne change pas.</p>
+    </div>
+  </div></div>`;
+}
+
 function viewSync() {
   const conflicts = store.conflicts?.() || [], pending = store.pendingList?.() || [];
   return `<div class="overlay" data-act="closeSheetBg"><div class="sheet" role="dialog" aria-modal="true" aria-label="Synchronisation">
@@ -951,7 +1021,7 @@ const actions = {
     if (ok) { const snap = store.snapshot?.(); if (snap) { S.profile = snap.profile; S.items = snap.items; S.outfits = snap.outfits; S.wears = snap.wears; ensureSelection(); } if (!(store.conflicts?.() || []).length && !(store.pendingList?.() || []).length) closeSheet(); render(); }
   },
   // Le brouillon garde les éventuelles clés inconnues de l'avatar enregistré et complète les manquantes.
-  openAvatar() { S.sheet = { kind: 'avatar', tab: 'cheveux', draft: { ...S.profile.avatar, ...normalizeAvatar(S.profile.avatar) } }; S.confirmAccount = false; render(); },
+  openAvatar() { closeSheet(); S.sheet = { kind: 'avatar', tab: 'cheveux', draft: { ...S.profile.avatar, ...normalizeAvatar(S.profile.avatar) } }; S.confirmAccount = false; render(); },
   av(el) { S.sheet.draft = { ...S.sheet.draft, [el.dataset.k]: el.dataset.num ? Number(el.dataset.v) : el.dataset.v }; render(); },
   avMark(el) {
     const m = el.dataset.v, cur = S.sheet.draft.marks || [];
@@ -959,6 +1029,28 @@ const actions = {
   },
   avTab(el) { S.sheet.tab = el.dataset.v; render(); const b = document.querySelector('.sheet-body'); if (b) b.scrollTop = 0; },
   avRandom() { S.sheet.draft = { ...S.sheet.draft, ...normalizeAvatar(randomAvatar(S.sheet.draft)) }; render(); },
+  openFace() { S.sheet = { kind: 'face', use: facePath(S.profile.avatar) ? 'photo' : 'avatar', blob: null, preview: null, removed: false, err: '' }; S.confirmAccount = false; render(); },
+  faceUse(el) { S.sheet.use = el.dataset.v === 'photo' ? 'photo' : 'avatar'; S.sheet.err = ''; render(); },
+  faceRemove() { const sh = S.sheet; dropPreview(sh.preview); Object.assign(sh, { blob: null, preview: null, removed: true, use: 'avatar', err: '' }); render(); },
+  async saveFace() {
+    const sh = S.sheet, cur = S.profile.avatar, wantPhoto = sh.use === 'photo';
+    sh.err = '';
+    const ok = await guarded(async () => {
+      const old = savedFace(cur);
+      let photo = sh.removed ? null : old;
+      if (sh.blob) photo = await friendsApi.uploadFace(sh.blob);   // connexion nécessaire
+      if (wantPhoto && !photo) throw new Error('Choisis d’abord une photo.');
+      const next = { ...cur, usePhoto: wantPhoto };
+      delete next.photo; if (photo) next.photo = photo;
+      let r;
+      try { r = await store.saveAvatar(next); } catch (e) { if (sh.blob) await friendsApi.removeFace(photo); throw e; }
+      if (sh.blob) { faces.urls.set(photo, sh.preview); ownUrls.delete(sh.preview); sh.preview = null; }   // aperçu gardé pour l'affichage
+      // l'ancienne photo de profil n'est effacée qu'une fois le changement bien enregistré sur le serveur
+      if (old && old !== photo && !r?.queued) await friendsApi.removeFace(old);
+      S.profile.avatar = next; closeSheet();
+    }, 'sheet');
+    if (ok) toast(done(wantPhoto ? 'Photo de profil enregistrée' : 'Ton avatar s’affiche sur ton profil'));
+  },
   async saveAvatar() {
     const draft = S.sheet.draft;
     const ok = await guarded(async () => { await store.saveAvatar(draft); S.profile.avatar = draft; closeSheet(); });
@@ -1253,6 +1345,17 @@ app.addEventListener('input', (ev) => {
 });
 app.addEventListener('change', async (ev) => {
   if (ev.target.dataset.check && S.sheet?.form) { S.sheet.form[ev.target.dataset.check] = ev.target.checked; return; }
+  if (ev.target.dataset.faceFile) {
+    const file = ev.target.files?.[0], sh = S.sheet; ev.target.value = '';
+    if (!file || sh?.kind !== 'face') return;
+    try {
+      const blob = await cropFace(file);
+      if (!blob || S.sheet !== sh) return;
+      dropPreview(sh.preview);
+      Object.assign(sh, { blob, preview: makePreview(blob), use: 'photo', removed: false, err: '' }); render();
+    } catch (e) { toast('Photo illisible, essaie une autre image', 'err'); }
+    return;
+  }
   const side = ev.target.dataset.photo;
   if (!side || !ev.target.files?.[0] || !S.sheet?.form) return;
   await applyPhoto(side, ev.target.files[0], false);
@@ -1288,6 +1391,14 @@ async function applyPhoto(side, file, keepRawPreview) {
 }
 // Photo dont le lien a expiré entre deux renouvellements : on renouvelle tout de suite
 app.addEventListener('error', (ev) => {
+  // photo de profil qui ne se charge pas : nouveau lien une fois, puis avatar dessiné
+  const fp = ev.target?.matches?.('img[data-face]') && ev.target.dataset.face;
+  if (fp) {
+    faces.urls.delete(fp);
+    if (faces.retried.has(fp)) faces.bad.add(fp); else { faces.retried.add(fp); faces.asked.delete(fp); }
+    if (savedFace(S.profile.avatar) === fp) { try { localStorage.removeItem(FACE_LS); } catch (e) { /* rien */ } }
+    render(); return;
+  }
   if (ev.target?.matches?.('img[data-photo-img]') && !refreshPhotoLinks.pending) {
     refreshPhotoLinks.pending = true;
     S.items = S.items.map((i) => ({ ...i, url_expires: 0 }));

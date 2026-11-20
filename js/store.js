@@ -9,6 +9,9 @@ const today = () => new Date().toLocaleDateString('sv-SE'); // AAAA-MM-JJ, heure
 const SIGN_SECONDS = 60 * 60 * 24;             // validité des liens de photos : 24 h
 const RESIGN_MARGIN = 60 * 60 * 1000;          // on renouvelle 1 h avant l'expiration
 const MAX_UPLOAD = 5 * 1024 * 1024;            // même limite que le bucket (migration 001)
+// Photos de profil : seules ces photos-là peuvent être effacées par l'écran « Photo de profil »
+const FACE_PREFIX = 'profil-';
+const isFacePath = (path, folder) => typeof path === 'string' && !!folder && path.startsWith(`${folder}/${FACE_PREFIX}`) && !path.includes('..');
 const extOf = (b) => (b?.type === 'image/png' ? '.png' : b?.type === 'image/webp' ? '.webp' : '.jpg');
 const OUTFIT_KEYS = ['top_id', 'bottom_id', 'shoes_id', 'accessory_id', 'jacket_id'];
 // Accessoires en plus du premier (migration 004) : liste d'identifiants, vide sur les anciennes tenues
@@ -110,6 +113,18 @@ const demo = {
   async signOut() { const d = this._db(); d.user = null; this._save(d); },
   async profile() { const p = this._db().profile; return { ...p, avatar: { ...DEFAULT_AVATAR, ...p.avatar } }; },
   async saveAvatar(avatar) { const d = this._db(); d.profile.avatar = avatar; this._save(d); },
+  // Photo de profil (rangée avec les photos ; son chemin est gardé dans l'avatar : avatar.photo)
+  async uploadFace(blob) {
+    checkBlob(blob);
+    const path = `demo/${FACE_PREFIX}${Date.now()}${extOf(blob)}`;
+    await idbPut(path, blob); return path;
+  },
+  async faceUrls(paths) {
+    const out = {};
+    for (const p of paths) { const u = await this._url(p); if (u) out[p] = u; }
+    return out;
+  },
+  async removeFace(path) { if (isFacePath(path, 'demo')) { this._forget(path); await idbDel(path).catch(() => {}); } },
   async items() {
     const d = this._db();
     const list = d.items.slice().sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -326,6 +341,33 @@ const online = {
     const { data, error } = await c.from('profiles').update({ avatar }).eq('id', this._uid).select('id, updated_at');
     fail(error); if (!data?.length) throw new Error('Profil introuvable : avatar non enregistré.');
     return data[0];
+  },
+  async uploadFace(blob) {
+    checkBlob(blob);
+    const c = await client();
+    const path = `${this._uid}/${FACE_PREFIX}${Date.now()}${extOf(blob)}`;
+    const { error } = await c.storage.from('photos').upload(path, blob, { contentType: blob.type, upsert: false });
+    fail(error); return path;
+  },
+  // Liens des photos de profil (la mienne et celles de mes amis : règle « photos lecture amis » de la migration 005).
+  // Une photo non autorisée (demande d'ami pas encore acceptée) est simplement absente du résultat.
+  async faceUrls(paths) {
+    const list = paths.filter((p) => typeof p === 'string' && p);
+    if (!list.length) return {};
+    const c = await client();
+    const { data, error } = await c.storage.from('photos').createSignedUrls(list, SIGN_SECONDS);
+    if (error && list.length > 1 && !NETWORK_RE.test(error.message || '')) {
+      // une seule photo refusée ne doit pas cacher les autres : on les demande une par une
+      const one = await Promise.all(list.map((p) => this.faceUrls([p]).catch(() => ({}))));
+      return Object.assign({}, ...one);
+    }
+    fail(error);
+    return Object.fromEntries((data || []).filter((d) => !d.error && d.signedUrl).map((d) => [d.path, d.signedUrl]));
+  },
+  async removeFace(path) {
+    if (!isFacePath(path, this._uid)) return;
+    const c = await client();
+    await c.storage.from('photos').remove([path]).catch(() => {});
   },
   async _sign(list) {
     const c = await client();
