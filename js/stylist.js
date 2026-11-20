@@ -1,7 +1,7 @@
 // Styliste : personnage en pixel art, décor de boutique et choix de la tenue.
 // Tout est calculé sur l'appareil, sans IA externe. Rien n'est enregistré ici :
 // la tenue proposée remplit seulement la sélection de l'accueil.
-import { isNeutral, isDark, isShort } from './catalog.js';
+import { isNeutral, isDark, isShort, sameFamily } from './catalog.js';
 
 export const STYLIST_NAME = 'Christina Cordula';
 
@@ -156,17 +156,18 @@ function pairScore(a, b) {
   let s = 0;
   const na = isNeutral(a.color_hex), nb = isNeutral(b.color_hex);
   if (na || nb) s += 1.5; else s -= 1;                              // une couleur forte + une base neutre
-  if (a.color_hex === b.color_hex && !(na && nb)) s -= 1.5;         // même couleur forte : trop chargé
+  if (sameFamily(a.color_hex, b.color_hex) && !(na && nb)) s -= 1.5;  // même couleur forte : trop chargé
   if (na && nb && isDark(a.color_hex) !== isDark(b.color_hex)) s += 0.6; // contraste clair / foncé
   if (a.style && b.style) s += a.style === b.style ? 1.2 : CLASH(a.style, b.style) ? -2 : 0;
   s += echo(a, b) || echo(b, a) ? 1.3 : 0;                          // la touche de l'une reprend la couleur de l'autre
   const strong = (it) => [it.color_hex, ...(it.secondary_colors || [])].filter((h) => !isNeutral(h));
   const sa = strong(a), sb = strong(b);
-  if (sa.length && sb.length && !sa.some((h) => sb.includes(h)) && sa.length + sb.length > 2) s -= 0.8; // trop de couleurs vives différentes
+  if (sa.length && sb.length && !sa.some((h) => sb.some((k) => sameFamily(h, k))) && sa.length + sb.length > 2) s -= 0.8; // trop de couleurs vives différentes
   return s;
 }
-// Une couleur secondaire (non neutre) de « a » est la couleur dominante de « b »
-const echo = (a, b) => !isNeutral(b.color_hex) && (a.secondary_colors || []).includes(b.color_hex);
+// Une couleur secondaire (non neutre) de « a » est de la même famille que la couleur dominante de « b »
+// (couleurs exactes : un rose poudré et un rose vif vont ensemble)
+const echo = (a, b) => !isNeutral(b.color_hex) && (a.secondary_colors || []).some((h) => sameFamily(h, b.color_hex));
 function proportion(top, bottom) {
   if (top.fit === 'Ample' && bottom.fit === 'Ajusté') return 2;
   if (top.fit === 'Ajusté' && ['Ample', 'Regular'].includes(bottom.fit)) return 1.2;
