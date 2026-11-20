@@ -1,5 +1,6 @@
 import { CATEGORIES, CAT_ORDER, ACC_SIZE, MAX_ACC, PALETTE, PALETTE_VIEW, inPalette, colorLabel, AV, DEFAULT_AVATAR, SEASONS, STYLES, WARMTH, FORMALITY, isNeutral, safeColor, isShort } from './catalog.js';
-import { faceSVG, garmentSVG, esc } from './draw.js';
+import { garmentSVG, esc } from './draw.js';
+import { faceSVG, avatarSVG, normalizeAvatar, randomAvatar } from './avatar.js';
 import { flatlaySVG } from './flatlay.js';
 import { cutout, isCutPath } from './cutout.js';
 import { retouch } from './retouch.js';
@@ -245,7 +246,7 @@ function viewLoadError() {
 function viewAuth() {
   const signup = S.authMode === 'signup';
   return `<main class="auth">
-    <div>${faceSVG(DEFAULT_AVATAR, 64)}</div>
+    <div><span class="auth-face">${faceSVG(DEFAULT_AVATAR, 64)}</span></div>
     <h1 class="h-font">${signup ? 'Crée ton compte' : 'Ma garde-robe'}</h1>
     <p>${signup ? 'Ta garde-robe sera synchronisée sur tous tes appareils.' : 'Retrouve toutes tes pièces et compose ta tenue en quelques secondes.'}</p>
     ${isDemo ? '<p class="note">Mode démo : n’importe quel e-mail et mot de passe fonctionnent.</p>' : ''}
@@ -516,7 +517,7 @@ function viewProfile() {
   return `${demoBanner()}<main class="screen">
     <header class="cat-head"><div class="t"><h1 class="h-font">Profil</h1>${S.user?.email ? `<span class="sub">${esc(S.user.email)}</span>` : ''}</div></header>
     <section class="profile-card" aria-label="Mon profil">
-      <span class="pf-face">${faceSVG(S.profile.avatar, 84)}</span>
+      <span class="pf-face">${faceSVG(S.profile.avatar, 76)}</span>
       <div style="min-width:0"><b class="h-font pf-name">${esc(S.profile.username || 'Moi')}</b>
         <div class="stats"><span><b>${S.items.length}</b>pièces</span><span><b>${S.outfits.length}</b>tenues</span><span><b>${S.wears.length}</b>jours</span></div></div>
     </section>
@@ -792,19 +793,37 @@ function viewImport() {
   </div></div>`;
 }
 
+const AV_TABS = [['cheveux', 'Cheveux'], ['visage', 'Visage'], ['yeux', 'Yeux'], ['barbe', 'Barbe'], ['acc', 'Accessoires'], ['tenue', 'Haut et fond']];
 function viewAvatar() {
-  const a = S.sheet.draft;
-  const sw = (title, key) => `<div class="field">${title} · ${AV[key][a[key]].label}<div class="swatches big">${AV[key].map((o, i) => `<button type="button" class="swatch" style="background:${o.hex}" aria-label="${o.label}" aria-pressed="${a[key] === i}" data-act="av" data-k="${key}" data-v="${i}" data-num="1"></button>`).join('')}</div></div>`;
+  const a = S.sheet.draft, tab = S.sheet.tab || 'cheveux';
+  const sw = (title, key) => {
+    const list = AV[key], cur = list[a[key]] || list[0];
+    return `<div class="field">${title} · ${esc(cur.label)}<div class="swatches big">${list.map((o, i) => `<button type="button" class="swatch" style="background:${o.swatch || o.hex}" aria-label="${esc(o.label)}" aria-pressed="${a[key] === i}" data-act="av" data-k="${key}" data-v="${i}" data-num="1"></button>`).join('')}</div></div>`;
+  };
+  // Vignettes : l'avatar lui-même avec chaque choix, pour voir le résultat avant de toucher.
+  const th = (title, key, view, cols = 4) => `<div class="field">${title}<div class="av-grid c${cols}">${AV[key].map((o) => `<button type="button" class="av-opt" aria-pressed="${a[key] === o}" data-act="av" data-k="${key}" data-v="${esc(o)}">${avatarSVG({ ...a, [key]: o }, { size: 96, view, noBg: true })}<span>${esc(o)}</span></button>`).join('')}</div></div>`;
   const ch = (title, key) => `<div class="field">${title}<div class="swatches">${AV[key].map((o) => `<button type="button" class="chip" aria-pressed="${a[key] === o}" data-act="av" data-k="${key}" data-v="${esc(o)}">${esc(o)}</button>`).join('')}</div></div>`;
-  return `<div class="overlay" data-act="closeSheetBg"><div class="sheet" role="dialog" aria-modal="true" aria-label="Mon avatar">
+  const marks = `<div class="field">Détails<div class="av-grid c3">${AV.marks.map((m) => { const on = (a.marks || []).includes(m); return `<button type="button" class="av-opt" aria-pressed="${on}" data-act="avMark" data-v="${esc(m)}">${avatarSVG({ ...a, marks: on ? a.marks : [...(a.marks || []), m] }, { size: 96, view: 'cheek', noBg: true })}<span>${esc(m)}</span></button>`; }).join('')}</div></div>`;
+  const panels = {
+    cheveux: th('Coiffure', 'hairStyle', 'head') + sw('Couleur des cheveux', 'hair'),
+    visage: sw('Couleur de peau', 'skin') + th('Forme du visage', 'faceShape', 'head', 3) + th('Nez', 'nose', 'nose', 3) + th('Bouche', 'mouth', 'lower', 3) + marks,
+    yeux: sw('Couleur des yeux', 'eye') + th('Forme des yeux', 'eyeShape', 'eyes', 3) + ch('Taille des yeux', 'eyeSize') + th('Sourcils', 'brows', 'eyes', 3),
+    barbe: `<p class="av-note">Barbe, moustache et sourcils prennent la couleur des cheveux.</p>` + th('Barbe', 'beard', 'lower', 3) + th('Moustache', 'moustache', 'lower', 3),
+    acc: th('Lunettes', 'glasses', 'eyes', 3) + th('Boucles d’oreilles', 'earrings', 'ears', 3) + sw('Métal', 'metal'),
+    tenue: th('Morphologie', 'build', 'bust') + th('Haut', 'top', 'bust') + sw('Couleur du haut', 'topColor') + sw('Fond', 'bg')
+  };
+  return `<div class="overlay" data-act="closeSheetBg"><div class="sheet av-sheet" role="dialog" aria-modal="true" aria-label="Mon avatar">
     <span class="grab"></span>
     <div class="sheet-head"><h2 class="h-font">Mon avatar</h2><button class="icon-btn" data-act="closeSheet" aria-label="Fermer">${ico('close', 18, 2)}</button></div>
-    <div class="face-preview">${faceSVG(a, 132, '62 -2 76 76', 'Aperçu du visage')}</div>
-    <div class="sheet-body">
-      ${sw('Couleur de peau', 'skin')}${sw('Couleur des cheveux', 'hair')}${sw('Couleur des yeux', 'eye')}
-      ${ch('Coiffure', 'hairStyle')}${ch('Forme des yeux', 'eyeShape')}${ch('Taille des yeux', 'eyeSize')}${ch('Barbe', 'beard')}${ch('Morphologie', 'build')}
-      <button class="btn accent" data-act="saveAvatar" ${S.busy ? 'disabled' : ''}>Valider</button>
+    <div class="av-stage">
+      <div class="face-preview">${avatarSVG(a, { size: 132, view: 'full', label: 'Aperçu de l’avatar' })}</div>
+      <div class="av-side">
+        <button type="button" class="btn ghost av-dice" data-act="avRandom">${ico('retry', 18, 2)}Au hasard</button>
+        <button class="btn accent" data-act="saveAvatar" ${S.busy ? 'disabled' : ''}>Valider</button>
+      </div>
     </div>
+    <div class="av-tabs" role="tablist">${AV_TABS.map(([k, l]) => `<button type="button" role="tab" class="chip" aria-selected="${tab === k}" aria-pressed="${tab === k}" data-act="avTab" data-v="${k}">${l}</button>`).join('')}</div>
+    <div class="sheet-body">${panels[tab] || ''}</div>
   </div></div>`;
 }
 
@@ -931,8 +950,15 @@ const actions = {
     const ok = await guarded(async () => { await store.resolve(Number(el.dataset.seq), el.dataset.v); });
     if (ok) { const snap = store.snapshot?.(); if (snap) { S.profile = snap.profile; S.items = snap.items; S.outfits = snap.outfits; S.wears = snap.wears; ensureSelection(); } if (!(store.conflicts?.() || []).length && !(store.pendingList?.() || []).length) closeSheet(); render(); }
   },
-  openAvatar() { S.sheet = { kind: 'avatar', draft: { ...S.profile.avatar } }; S.confirmAccount = false; render(); },
-  av(el) { S.sheet.draft[el.dataset.k] = el.dataset.num ? Number(el.dataset.v) : el.dataset.v; render(); },
+  // Le brouillon garde les éventuelles clés inconnues de l'avatar enregistré et complète les manquantes.
+  openAvatar() { S.sheet = { kind: 'avatar', tab: 'cheveux', draft: { ...S.profile.avatar, ...normalizeAvatar(S.profile.avatar) } }; S.confirmAccount = false; render(); },
+  av(el) { S.sheet.draft = { ...S.sheet.draft, [el.dataset.k]: el.dataset.num ? Number(el.dataset.v) : el.dataset.v }; render(); },
+  avMark(el) {
+    const m = el.dataset.v, cur = S.sheet.draft.marks || [];
+    S.sheet.draft = { ...S.sheet.draft, marks: cur.includes(m) ? cur.filter((x) => x !== m) : [...cur, m] }; render();
+  },
+  avTab(el) { S.sheet.tab = el.dataset.v; render(); const b = document.querySelector('.sheet-body'); if (b) b.scrollTop = 0; },
+  avRandom() { S.sheet.draft = { ...S.sheet.draft, ...normalizeAvatar(randomAvatar(S.sheet.draft)) }; render(); },
   async saveAvatar() {
     const draft = S.sheet.draft;
     const ok = await guarded(async () => { await store.saveAvatar(draft); S.profile.avatar = draft; closeSheet(); });

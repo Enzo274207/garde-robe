@@ -1,65 +1,9 @@
-// Dessins SVG : silhouette, visage, illustrations des pièces.
-import { AV, isDark, safeColor, isShort } from './catalog.js';
+// Dessins SVG : illustrations des pièces (l'avatar est dans avatar.js).
+import { isDark, safeColor, isShort } from './catalog.js';
 
 const f1 = (v) => (Math.round(v * 10) / 10).toString();
 const circ = (cx, cy, r) => `M${cx - r} ${cy} a${r} ${r} 0 1 0 ${2 * r} 0 a${r} ${r} 0 1 0 ${-2 * r} 0 Z`;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-
-/* ---------- visage ---------- */
-export function faceParts(a) {
-  const sk = AV.skin[a.skin] || AV.skin[2];
-  const w = { Petits: 3.2, Moyens: 4, Grands: 4.9 }[a.eyeSize] || 4;
-  const ratio = { Amande: 0.55, Ronds: 0.85, 'Étroits': 0.32 }[a.eyeShape] || 0.55;
-  const h = w * ratio;
-  const eyeWhite = (x) => a.eyeShape === 'Ronds'
-    ? circ(x, 42, w * 0.85)
-    : `M${x - w} 42 Q${x} ${42 - h * 1.6} ${x + w} 42 Q${x} ${42 + h * 1.4} ${x - w} 42 Z`;
-  const r = Math.min(w * 0.55, a.eyeShape === 'Ronds' ? w * 0.55 : h * 0.95);
-  const by = 42 - Math.max(h * 1.2, 3.5) - 4;
-  const brow = (x) => `M${x - 5.5} ${by + 1} Q${x} ${by - 1.5} ${x + 5.5} ${by + 0.5}`;
-  const hairPaths = {
-    Court: 'M75 38 Q72 7 100 7 Q128 7 125 36 Q119 21 101 21 Q84 21 75 38 Z',
-    'Dégradé': 'M76.5 31 Q76 9 100 8 Q124 9 123.5 31 Q117 17 100 16.5 Q83 17 76.5 31 Z',
-    'Mi-long': 'M73 62 Q66 5 100 4 Q134 5 127 62 Q125 44 123 32 Q113 21 100 21 Q87 22 77 32 Q75 44 73 62 Z',
-    'Bouclé': 'M74 36 Q68 28 74 21 Q72 10 84 9 Q90 1 100 5 Q110 1 116 9 Q128 10 126 21 Q132 28 126 36 Q121 22 100 21 Q79 22 74 36 Z',
-    'Rasé': 'M76.5 31 Q76 9 100 8 Q124 9 123.5 31 Q117 17 100 16.5 Q83 17 76.5 31 Z'
-  };
-  const beards = {
-    Aucune: '',
-    Courte: 'M76.5 46 Q78 71.5 100 71.5 Q122 71.5 123.5 46 Q119 60 108 59.5 Q100 57.5 92 59.5 Q81 60 76.5 46 Z',
-    Pleine: 'M76 42 Q76 77 100 78 Q124 77 124 42 Q120 58 108 58 Q100 56 92 58 Q80 58 76 42 Z'
-  };
-  return {
-    skin: sk.hex, skinDark: sk.dark, lip: sk.lip,
-    hair: (AV.hair[a.hair] || AV.hair[0]).hex, eye: (AV.eye[a.eye] || AV.eye[0]).hex,
-    hairPath: hairPaths[a.hairStyle] || hairPaths.Court, hairOpacity: a.hairStyle === 'Rasé' ? 0.35 : 1,
-    beard: beards[a.beard] || '',
-    eyeWhites: eyeWhite(91) + ' ' + eyeWhite(109),
-    irises: circ(91, 42, r) + ' ' + circ(109, 42, r),
-    brows: brow(91) + ' ' + brow(109),
-    k: { Mince: 0.92, Normale: 1, 'Athlétique': 1.09 }[a.build] || 1
-  };
-}
-
-function headSVG(p, withNeck) {
-  return `${withNeck ? `<rect x="89" y="64" width="22" height="42" rx="7" fill="${p.skinDark}"/>` : ''}
-    <ellipse cx="75.5" cy="45" rx="4" ry="7" fill="${p.skinDark}"/>
-    <ellipse cx="124.5" cy="45" rx="4" ry="7" fill="${p.skinDark}"/>
-    <ellipse cx="100" cy="40" rx="25" ry="31" fill="${p.skin}"/>
-    <path d="${p.beard}" fill="${p.hair}" opacity=".85"/>
-    <path d="${p.eyeWhites}" fill="#F7F4EF"/>
-    <path d="${p.irises}" fill="${p.eye}"/>
-    <path d="${p.brows}" fill="none" stroke="${p.hair}" stroke-width="1.8" stroke-linecap="round"/>
-    <path d="M100 45 Q97.5 53 101.5 54" fill="none" stroke="${p.skinDark}" stroke-width="1.4" stroke-linecap="round"/>
-    <path d="M94.5 61 Q100 63.5 105.5 61" fill="none" stroke="${p.lip}" stroke-width="1.6" stroke-linecap="round"/>
-    <path d="${p.hairPath}" fill="${p.hair}" opacity="${p.hairOpacity}"/>`;
-}
-
-export function faceSVG(avatar, size, viewBox = '66 0 68 68', label) {
-  const p = faceParts(avatar);
-  const a11y = label ? `role="img" aria-label="${esc(label)}"` : 'aria-hidden="true"';
-  return `<svg ${a11y} width="${size}" height="${size}" viewBox="${viewBox}">${headSVG(p, viewBox !== '66 0 68 68')}</svg>`;
-}
 
 /* ---------- chaussures (profil, 45 x 27) ---------- */
 const SHOES = {
@@ -82,77 +26,6 @@ function soleColor(item) {
   if (item.type === 'Ville') return '#4A3426';
   if (item.type === 'Bottines') return '#2A2A2A';
   return isDark(item.color_hex) ? '#F2F2F0' : '#E2DED6';
-}
-
-/* ---------- silhouette complète ---------- */
-export function figureSVG({ top, bottom, shoes, jacket, avatar }) {
-  const p = faceParts(avatar);
-  const R = (v) => f1(100 + v), L = (v) => f1(100 - v);
-  const topFit = top?.fit || 'Regular';
-  const tf = { 'Ajusté': { S: 48, W: 42, H: 39, hem: 300, ox: 8, sw: 18 }, Regular: { S: 50, W: 46, H: 45, hem: 308, ox: 10, sw: 22 }, Ample: { S: 57, W: 55, H: 56, hem: 324, ox: 13, sw: 29 } }[topFit] || { S: 50, W: 46, H: 45, hem: 308, ox: 10, sw: 22 };
-  const longS = !(top && top.type === 'T-shirt');
-  const endY = longS ? 296 : 182, ox = longS ? tf.ox : tf.ox * 0.6, sw = longS ? tf.sw : tf.sw + 7;
-  const { S, W, H, hem } = tf;
-  const torso = `M80 90 Q87 104 100 106 Q113 104 120 90 L${R(S)} 103 Q${R(W + 3)} 125 ${R(W)} 165 Q${R(H + 2)} ${hem - 60} ${R(H)} ${hem} L${L(H)} ${hem} Q${L(H + 2)} ${hem - 60} ${L(W)} 165 Q${L(W + 3)} 125 ${L(S)} 103 Z`;
-  const midY = (103 + endY) / 2, midI = (168 + endY) / 2;
-  const sleeve = (X) => `M${X(S)} 103 Q${X(S + ox + 5)} ${midY} ${X(S + ox)} ${endY} L${X(S + ox - sw)} ${endY + 2} Q${X(W + 3)} ${midI} ${X(W - 1)} 168 Z`;
-  const wx = S + tf.ox - tf.sw / 2;
-  const arms = `M${R(S - 7)} 112 L${R(wx)} 300 M${L(S - 7)} 112 L${L(wx)} 300`;
-  const hand = (x) => `M${x} 300 m-8 0 a8 15 0 1 0 16 0 a8 15 0 1 0 -16 0`;
-  const bFit = bottom?.fit || 'Regular';
-  const bf = { 'Ajusté': { hip: 43, Ko: 35, Ki: 8, Ho: 30, Hi: 13 }, Regular: { hip: 44, Ko: 40, Ki: 6, Ho: 38, Hi: 10 }, Ample: { hip: 47, Ko: 47, Ki: 4, Ho: 48, Hi: 6 } }[bFit] || { hip: 44, Ko: 40, Ki: 6, Ho: 38, Hi: 10 };
-  const pants = `M${L(40)} 285 L${R(40)} 285 Q${R(bf.hip + 1)} 305 ${R(bf.hip)} 335 L${R(bf.Ko)} 440 L${R(bf.Ho)} 565 L${R(bf.Hi)} 565 L${R(bf.Ki)} 440 L${R(2)} 352 L${L(2)} 352 L${L(bf.Ki)} 440 L${L(bf.Hi)} 565 L${L(bf.Ho)} 565 L${L(bf.Ko)} 440 L${L(bf.hip)} 335 Q${L(bf.hip + 1)} 305 ${L(40)} 285 Z`;
-  const cK = (bf.Ko + bf.Ki) / 2, cH = (bf.Ho + bf.Hi) / 2;
-  const crease = `M${R(cK)} 400 L${R(cH)} 555 M${L(cK)} 400 L${L(cH)} 555 M100 300 L100 340`;
-  const sh = SHOES[shoeKey(shoes)];
-  const shoeHex = shoes ? safeColor(shoes.color_hex) : '#F4F2EE';
-  const shoeAcc = isDark(shoeHex) ? 'rgba(255,255,255,.4)' : 'rgba(0,0,0,.3)';
-  const shoe = (tr) => `<g transform="${tr}"><path d="${sh.u}" fill="${shoeHex}" stroke="var(--outline)" stroke-width="1.2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><path d="${sh.d}" fill="none" stroke="${shoeAcc}" stroke-width="1.6" stroke-linecap="round" vector-effect="non-scaling-stroke"/><path d="${SOLE}" fill="${soleColor(shoes)}" stroke="var(--outline)" stroke-width="1.2" vector-effect="non-scaling-stroke"/></g>`;
-  const topHex = top ? safeColor(top.color_hex) : '#D8D3CB';
-  const botHex = bottom ? safeColor(bottom.color_hex) : '#BDB7AD';
-  // Veste ouverte par-dessus le haut : silhouette un peu plus large et plus longue, manches longues,
-  // puis une bande du haut visible au centre.
-  let jacketSVG = '';
-  if (jacket) {
-    const jf = { 'Ajusté': 3, Regular: 6, Ample: 11 }[jacket.fit] || 6;
-    const long = jacket.type === 'Manteau' ? 70 : jacket.type === 'Doudoune' ? 14 : 18;
-    const JS = S + 3 + jf / 2, JW = W + jf, JH = H + jf, jhem = Math.max(hem, 300) + long;
-    const jHex = safeColor(jacket.color_hex);
-    const jTorso = `M80 88 L${R(JS)} 101 Q${R(JW + 3)} 125 ${R(JW)} 165 Q${R(JH + 2)} ${jhem - 60} ${R(JH)} ${jhem} L${L(JH)} ${jhem} Q${L(JH + 2)} ${jhem - 60} ${L(JW)} 165 Q${L(JW + 3)} 125 ${L(JS)} 101 L120 88 Z`;
-    const jox = 11 + jf / 2, jsw = 24 + jf;
-    const jSleeve = (X) => `M${X(JS)} 101 Q${X(JS + jox + 5)} 199 ${X(JS + jox)} 298 L${X(JS + jox - jsw)} 300 Q${X(JW + 3)} 234 ${X(JW - 1)} 168 Z`;
-    const open = `M93 104 L107 104 L107 ${jhem} L93 ${jhem} Z`;
-    jacketSVG = `<path d="${jTorso}" fill="${jHex}" stroke="var(--outline)" stroke-width="1.2" stroke-linejoin="round"/>
-    <path d="${jTorso}" fill="url(#shadeX)"/>
-    <path d="${jSleeve(R)} ${jSleeve(L)}" fill="${jHex}" stroke="var(--outline)" stroke-width="1.2" stroke-linejoin="round"/>
-    <path d="${jSleeve(R)} ${jSleeve(L)}" fill="url(#shadeX)" opacity=".7"/>
-    <path d="${open}" fill="${topHex}" stroke="var(--outline)" stroke-width="1"/>
-    <path d="M93 104 L86 92 M107 104 L114 92" stroke="var(--outline)" stroke-width="1.2" fill="none"/>`;
-  }
-  const k = p.k;
-  const label = `Silhouette : ${top ? top.name : 'aucun haut'}${jacket ? ', ' + jacket.name : ''}, ${bottom ? bottom.name : 'aucun bas'}, ${shoes ? shoes.name : 'aucune chaussure'}`;
-  return `<svg role="img" aria-label="${esc(label)}" width="140" height="420" viewBox="0 0 200 600">
-  <defs><linearGradient id="shadeX" x1="0" y1="0" x2="1" y2="0">
-    <stop offset="0" stop-color="#000" stop-opacity=".22"/><stop offset=".3" stop-color="#fff" stop-opacity=".08"/>
-    <stop offset=".55" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".25"/></linearGradient></defs>
-  <ellipse cx="100" cy="593" rx="72" ry="6" fill="var(--shadow)"/>
-  <g transform="translate(100 0) scale(${k} 1) translate(-100 0)">
-    <path d="${arms}" fill="none" stroke="${p.skin}" stroke-width="15" stroke-linecap="round"/>
-    <rect x="89" y="64" width="22" height="42" rx="7" fill="${p.skinDark}"/>
-    ${shoe(`translate(${L(bf.Hi - 3)} 559) scale(-1.15 1.15)`)}
-    ${shoe(`translate(${R(bf.Hi - 3)} 559) scale(1.15)`)}
-    <path d="${pants}" fill="${botHex}" stroke="var(--outline)" stroke-width="1.2" stroke-linejoin="round"/>
-    <path d="${pants}" fill="url(#shadeX)"/>
-    <path d="${crease}" fill="none" stroke="#000" stroke-opacity=".18" stroke-width="1.2"/>
-    <path d="${torso}" fill="${topHex}" stroke="var(--outline)" stroke-width="1.2" stroke-linejoin="round"/>
-    <path d="${torso}" fill="url(#shadeX)"/>
-    <path d="${sleeve(R)} ${sleeve(L)}" fill="${topHex}" stroke="var(--outline)" stroke-width="1.2" stroke-linejoin="round"/>
-    <path d="${sleeve(R)} ${sleeve(L)}" fill="url(#shadeX)" opacity=".7"/>
-    ${jacketSVG}
-    <path d="${hand(R(wx + 1))} ${hand(L(wx + 1))}" fill="${p.skin}"/>
-  </g>
-  ${headSVG(p, false)}
-</svg>`;
 }
 
 /* ---------- illustrations des pièces (quand pas de photo) ---------- */

@@ -124,7 +124,9 @@ export const isDark = (hex) => {
   return (0.299 * r + 0.587 * g + 0.114 * b) < 110;
 };
 
-// Avatar
+// Avatar (portrait en buste, dessiné par js/avatar.js)
+// On ne retire ni ne renomme jamais une valeur : des avatars déjà enregistrés l'utilisent peut-être.
+// Les couleurs sont repérées par leur position dans la liste : on ajoute toujours à la fin.
 export const AV = {
   skin: [
     { label: 'Très claire', hex: '#F1D9C5', dark: '#DDBFA8', lip: '#C98A7E' },
@@ -132,23 +134,60 @@ export const AV = {
     { label: 'Mate', hex: '#C99B76', dark: '#B0825F', lip: '#9A6052' },
     { label: 'Hâlée', hex: '#A87652', dark: '#8F6040', lip: '#7D4A3C' },
     { label: 'Foncée', hex: '#7E5236', dark: '#673F28', lip: '#5A3326' },
-    { label: 'Très foncée', hex: '#573826', dark: '#432A1C', lip: '#3E2419' }
+    { label: 'Très foncée', hex: '#573826', dark: '#432A1C', lip: '#3E2419' },
+    { label: 'Porcelaine', hex: '#F7E6DA', dark: '#E5CBB9', lip: '#D49488' },
+    { label: 'Rosée', hex: '#EDC3AC', dark: '#D7A78E', lip: '#C47A6C' },
+    { label: 'Dorée', hex: '#D8AC80', dark: '#BF9064', lip: '#A86A56' },
+    { label: 'Olive', hex: '#B58F68', dark: '#9A7450', lip: '#8A5A48' },
+    { label: 'Caramel', hex: '#946240', dark: '#7A4C2E', lip: '#6A3C2E' },
+    { label: 'Ébène', hex: '#3F2A1E', dark: '#2E1E15', lip: '#2E1A13' }
   ],
   hair: [
     { label: 'Noir', hex: '#1D1A18' }, { label: 'Brun', hex: '#4A3022' }, { label: 'Châtain', hex: '#7A5333' },
-    { label: 'Blond', hex: '#C9A162' }, { label: 'Roux', hex: '#A4532B' }, { label: 'Gris', hex: '#9C9893' }
+    { label: 'Blond', hex: '#C9A162' }, { label: 'Roux', hex: '#A4532B' }, { label: 'Gris', hex: '#9C9893' },
+    { label: 'Noir bleuté', hex: '#20232E' }, { label: 'Châtain clair', hex: '#9A7350' }, { label: 'Blond doré', hex: '#DDB66E' },
+    { label: 'Blond platine', hex: '#E9DDBE' }, { label: 'Auburn', hex: '#7C3423' }, { label: 'Poivre et sel', hex: '#6F6C69' },
+    { label: 'Blanc', hex: '#ECEAE5' }, { label: 'Bleu', hex: '#3D5FA8' }, { label: 'Rose', hex: '#E08DAE' },
+    { label: 'Vert', hex: '#4E8F5A' }, { label: 'Violet', hex: '#6E4C9C' }, { label: 'Rouge', hex: '#B3262E' }
   ],
   eye: [
     { label: 'Marron', hex: '#5A3A22' }, { label: 'Noisette', hex: '#8A6A3A' }, { label: 'Bleu', hex: '#4F7DB0' },
-    { label: 'Vert', hex: '#5E8456' }, { label: 'Gris', hex: '#7D8A93' }
+    { label: 'Vert', hex: '#5E8456' }, { label: 'Gris', hex: '#7D8A93' },
+    { label: 'Noir', hex: '#2A1D16' }, { label: 'Ambre', hex: '#A8742A' }, { label: 'Bleu clair', hex: '#86B2DA' }, { label: 'Vert clair', hex: '#8DB07A' }
   ],
-  hairStyle: ['Court', 'Dégradé', 'Mi-long', 'Bouclé', 'Rasé'],
-  eyeShape: ['Amande', 'Ronds', 'Étroits'],
+  hairStyle: ['Chauve', 'Dégarni', 'Rasé', 'Waves', 'Dégradé', 'Court', 'Frange', 'Raie sur le côté', 'Plaqué', 'Banane', 'Hérissé',
+    'Undercut', 'Bouclé', 'Twists', 'Nattes collées', 'Afro', 'Mulet', 'Mi-long', 'Carré', 'Chignon', 'Macarons', 'Queue de cheval',
+    'Locks', 'Long lisse', 'Long ondulé', 'Frisé long'],
+  faceShape: ['Ovale', 'Rond', 'Carré', 'Allongé', 'Cœur', 'Losange'],
+  eyeShape: ['Amande', 'Ronds', 'Étroits', 'Tombants', 'Relevés', 'Paupières lourdes'],
   eyeSize: ['Petits', 'Moyens', 'Grands'],
-  beard: ['Aucune', 'Courte', 'Pleine'],
-  build: ['Mince', 'Normale', 'Athlétique']
+  brows: ['Naturels', 'Épais', 'Fins', 'Arqués', 'Droits', 'Broussailleux', 'Entaille'],
+  nose: ['Droit', 'Fin', 'Arrondi', 'Large', 'Aquilin', 'Retroussé'],
+  mouth: ['Sourire léger', 'Neutre', 'Grand sourire', 'En coin', 'Charnue', 'Fine'],
+  beard: ['Aucune', 'Barbe de 3 jours', 'Courte', 'Collier', 'Bouc', 'Pleine', 'Longue'],
+  moustache: ['Aucune', 'Fine', 'Classique', 'Épaisse', 'Guidon'],
+  marks: ['Taches de rousseur', 'Grain de beauté', 'Joues rosées', 'Fossettes', 'Cernes'],
+  glasses: ['Aucunes', 'Rondes', 'Carrées', 'Fines', 'Aviateur', 'Soleil', 'Soleil rondes'],
+  earrings: ['Aucune', 'Clou', 'Anneau', 'Deux clous', 'Deux anneaux'],
+  metal: [{ label: 'Argent', hex: '#D3D6DB' }, { label: 'Or', hex: '#D9B35A' }, { label: 'Noir', hex: '#2B2B2E' }],
+  build: ['Mince', 'Normale', 'Athlétique', 'Forte'],
+  top: ['T-shirt', 'Sweat à capuche', 'Col roulé', 'Chemise'],
+  topColor: [
+    { label: 'Noir', hex: '#1E1E1E' }, { label: 'Blanc', hex: '#F4F2EE' }, { label: 'Gris', hex: '#8C8C8C' }, { label: 'Marine', hex: '#27324F' },
+    { label: 'Kaki', hex: '#5B5F3A' }, { label: 'Beige', hex: '#CDB892' }, { label: 'Bordeaux', hex: '#7A2531' }, { label: 'Bleu', hex: '#4F7DB0' },
+    { label: 'Vert acide', hex: '#C6F135' }, { label: 'Orange', hex: '#E0782F' }, { label: 'Rose', hex: '#E6A4B4' }, { label: 'Marron', hex: '#6B4A32' }
+  ],
+  bg: [
+    { label: 'Vert acide', hex: 'var(--accent)', swatch: '#C8F135' }, { label: 'Crème', hex: '#EFE8DA' }, { label: 'Gris', hex: '#D9D7D2' },
+    { label: 'Ciel', hex: '#BFD9F2' }, { label: 'Rose', hex: '#F4CCD6' }, { label: 'Lavande', hex: '#D5CCF0' }, { label: 'Pêche', hex: '#F7CFAE' },
+    { label: 'Menthe', hex: '#C4EBD6' }, { label: 'Orange', hex: '#F08A3C' }, { label: 'Noir', hex: '#161616' }
+  ]
 };
-export const DEFAULT_AVATAR = { skin: 2, hair: 0, eye: 0, hairStyle: 'Court', eyeShape: 'Amande', eyeSize: 'Moyens', beard: 'Aucune', build: 'Normale' };
+export const DEFAULT_AVATAR = {
+  skin: 2, hair: 0, eye: 0, hairStyle: 'Court', eyeShape: 'Amande', eyeSize: 'Moyens', beard: 'Aucune', build: 'Normale',
+  faceShape: 'Ovale', brows: 'Naturels', nose: 'Droit', mouth: 'Sourire léger', moustache: 'Aucune', marks: [],
+  glasses: 'Aucunes', earrings: 'Aucune', metal: 0, top: 'T-shirt', topColor: 0, bg: 0
+};
 
 // Pièces d'exemple pour le mode démo
 export const DEMO_ITEMS = [
